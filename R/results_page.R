@@ -24,7 +24,7 @@ results_page_server <- function(id, data) {
       
       output$data_table <- renderReactable({
         req(data()) #ensures data is available
-        reactable(data())})
+        reactable(data()$cess_df)})
       
     }
   )

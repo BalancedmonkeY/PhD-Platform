@@ -33,7 +33,7 @@ data_page_server <- function(id) {
       # Load iframe of google sheet
       output$google_sheets_data <- renderUI({
         tags$iframe(
-          src="https://docs.google.com/spreadsheets/d/1DddDEB5TUQh2MccOvOhcrZ_hOe7DOEvhFosQ-ataaCI/edit?usp=sharing",
+          src="https://docs.google.com/spreadsheets/d/1IBE4yIVd67-8bcLEqptfglM75CWGz6SOE6D8LS4FULY/edit?usp=sharing",
           style='height:100vh;',
           width = "100%",
           frameBorder = "0")
@@ -42,9 +42,28 @@ data_page_server <- function(id) {
       # Load data from google sheet and refresh
       
       data <- eventReactive(input$refresh_button, {
-          df <- googlesheets4::read_sheet("https://docs.google.com/spreadsheets/d/1DddDEB5TUQh2MccOvOhcrZ_hOe7DOEvhFosQ-ataaCI/edit?usp=sharing")
-          df$Date <- as.Date(df$Date)
-          df
+        # Cessation data
+          cess_df <- googlesheets4::read_sheet("https://docs.google.com/spreadsheets/d/1IBE4yIVd67-8bcLEqptfglM75CWGz6SOE6D8LS4FULY/edit?usp=sharing",
+                                          sheet = "Cessation")
+          cess_df$Included_Date <- as.Date(cess_df$Included_Date)
+          cess_df$Excluded_Date <- as.Date(cess_df$Excluded_Date)
+        # Adverse events data
+          AE_df <- googlesheets4::read_sheet("https://docs.google.com/spreadsheets/d/1IBE4yIVd67-8bcLEqptfglM75CWGz6SOE6D8LS4FULY/edit?usp=sharing",
+                                               sheet = "Adverse_Events")
+          AE_df$Included_Date <- as.Date(AE_df$Included_Date)
+          AE_df$Excluded_Date <- as.Date(AE_df$Excluded_Date)
+        # Serious adverse events data
+          SAE_df <- googlesheets4::read_sheet("https://docs.google.com/spreadsheets/d/1IBE4yIVd67-8bcLEqptfglM75CWGz6SOE6D8LS4FULY/edit?usp=sharing",
+                                             sheet = "Serious_Adverse_Events")
+          SAE_df$Included_Date <- as.Date(SAE_df$Included_Date)
+          SAE_df$Excluded_Date <- as.Date(SAE_df$Excluded_Date)
+          
+        list(
+          cess_df = cess_df,
+          AE_df = AE_df,
+          SAE_df = SAE_df
+        )
+          
         },
         ignoreNULL = FALSE   # ensures it runs once at startup
       )
