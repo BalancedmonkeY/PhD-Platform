@@ -1,3 +1,7 @@
+# Initialise last search date file
+last_search_date_file_path <- "saved_date.rds"
+
+
 #' UI for the data page.
 #'
 #' @param id ID of the module.
@@ -5,14 +9,23 @@
 #' @return Div containing page
 data_page_ui <- function(id) {
   ns = NS(id)
+  
+  # Load saved date if exists, otherwise default
+  saved_last_search_date <- if (file.exists(last_search_date_file_path)) {
+    readRDS(last_search_date_file_path)
+  } else {
+    as.Date("2023-12-01")
+  }
+  
   div(
     fluidRow(
       box(
         div(
           style = "display: flex; align-items: center; gap: 12px;", # lines up widgets side by side
           actionButton(ns("refresh_button"), "Sync Data"),
-          textOutput(ns("refresh_text"))
-        )
+          textOutput(ns("refresh_text")),
+          dateInput(ns("last_search_date"), label = "Last Search Date", format = "dd MM yyyy", value = saved_last_search_date)
+        ),
       )
     ),
     htmlOutput(ns("google_sheets_data"))
@@ -24,7 +37,10 @@ data_page_ui <- function(id) {
 #'
 #' @param id ID of the module.
 #'
-#' @return loaded data frame
+#' @return list containing
+#' - loaded data frame(s) (each outcome)
+#' - last search date
+#' - unique studies
 data_page_server <- function(id) {
   moduleServer(
     id,
@@ -40,7 +56,6 @@ data_page_server <- function(id) {
       })
       
       # Load data from google sheet and refresh
-      
       data <- eventReactive(input$refresh_button, {
         # Cessation data
           cess_df <- googlesheets4::read_sheet("https://docs.google.com/spreadsheets/d/1IBE4yIVd67-8bcLEqptfglM75CWGz6SOE6D8LS4FULY/edit?usp=sharing",
@@ -68,13 +83,43 @@ data_page_server <- function(id) {
         ignoreNULL = FALSE   # ensures it runs once at startup
       )
       
+      studies <- eventReactive(input$refresh_button, {
+        # Unique studies
+        studies <- googlesheets4::read_sheet("https://docs.google.com/spreadsheets/d/1IBE4yIVd67-8bcLEqptfglM75CWGz6SOE6D8LS4FULY/edit?usp=sharing",
+                                             sheet = "Unique_Studies")
+        studies$Included_Date <- as.Date(studies$Included_Date)
+        studies$Excluded_Date <- as.Date(studies$Excluded_Date)
+        
+        return(studies)
+        
+      },
+      ignoreNULL = FALSE   # ensures it runs once at startup
+      )
+      
+      
       output$refresh_text <- renderText({
         data()
         paste0("Data last synced ", format(Sys.time(), "%a %b %d %Y %H:%M"))
       })
       
-      return(data)
       
+      # Save date whenever user changes date
+      observeEvent(input$last_search_date, {
+        if (!is.null(input$last_search_date)) {
+          saveRDS(input$last_search_date, last_search_date_file_path)
+        }
+      })
+      
+      # Extract last search date and save as a reactive
+      last_search_date <- reactive({
+        input$last_search_date
+      })
+      
+      return(list(
+        data = data,
+        last_search_date = last_search_date,
+        studies = studies)
+      )
     }
   )
 }

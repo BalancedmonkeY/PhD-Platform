@@ -1,5 +1,6 @@
 page_navbar( 
-  nav_panel("Home"), 
+  nav_panel("Home",
+            home_page_ui(id = "home")), 
   nav_panel("Data",
             data_page_ui(id = "data")), 
   nav_panel("Results",
