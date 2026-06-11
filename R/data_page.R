@@ -1,7 +1,3 @@
-# Initialise last search date file
-last_search_date_file_path <- "saved_date.rds"
-
-
 #' UI for the data page.
 #'
 #' @param id ID of the module.
@@ -10,12 +6,8 @@ last_search_date_file_path <- "saved_date.rds"
 data_page_ui <- function(id) {
   ns = NS(id)
   
-  # Load saved date if exists, otherwise default
-  saved_last_search_date <- if (file.exists(last_search_date_file_path)) {
-    readRDS(last_search_date_file_path)
-  } else {
-    as.Date("2023-12-01")
-  }
+  # Load saved date
+  saved_last_search_date <- readRDS("saved_date.rds")
   
   div(
     fluidRow(
@@ -103,10 +95,10 @@ data_page_server <- function(id) {
       })
       
       
-      # Save date whenever user changes date
+      # Save search date whenever user changes date
       observeEvent(input$last_search_date, {
         if (!is.null(input$last_search_date)) {
-          saveRDS(input$last_search_date, last_search_date_file_path)
+          saveRDS(input$last_search_date, "saved_date.rds")
         }
       })
       

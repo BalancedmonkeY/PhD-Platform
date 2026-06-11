@@ -42,18 +42,10 @@ home_page_server <- function(id, last_search_date, studies) {
     id,
     function(input, output, session) {
       
-      # Create base reactive table of published updates
-      published_updates <- reactive(
-        data.frame(
-          Publish_date = as.Date(c("17-Nov-2022", "14-Sep-2021", "29-Apr-2021", "14-Oct-2020"), "%d-%b-%Y"),
-          Search_date = as.Date(c("01-Jul-2022", "01-May-2021", "01-Feb-2021", "01-Jan-2020"), "%d-%b-%Y"),
-          No_studies = c(25, 19, 14, 13),
-          Reason = c("Change in GRADE rating and interpretation. Cessation and adverse events outcomes for NRT comparison moved from Moderate to High and Low to Moderate respectively. Interpretation of serious adverse events outcome for non-nicotine EC and behavioural comparisons both changed from beneficial and harmful respectively to unknown.",
-                     "New device data",
-                     "New device data and change in GRADE rating. Adverse events outcome for non-nicotine EC and behavioural comparison moved from Low to Moderate and Moderate to High respectively.",
-                     "Received funding to create living review."),
-          DOI = c("https://doi.org/10.1002/14651858.CD010216.pub7", "https://doi.org/10.1002/14651858.CD010216.pub6", "https://doi.org/10.1002/14651858.CD010216.pub5", "https://doi.org/10.1002/14651858.CD010216.pub4"))
-      )
+      # Read in recorded table of published updates
+      published_updates <- reactive({
+        readRDS("published_updates.rds")
+      })
       
       # Take most recent published update
       latest_published_update <- reactive({
@@ -62,17 +54,12 @@ home_page_server <- function(id, last_search_date, studies) {
         df
       })
       
-      # Initialise reactive entry for latest update subject to peer-review
-      non_peer_review_update <- reactive(
-        data.frame(
-          Publish_date = as.Date("08-Jan-2024", "%d-%b-%Y"), 
-          Search_date = as.Date("01-Jul-2023", "%d-%b-%Y"), 
-          No_studies = 28, 
-          Reason = "Change in GRADE rating and interpretation. Cessation outcome for behavioural comparison moved from Moderate to High. Interpretation of serious adverse events outcome for behavioural comparison changed from unknown to clinically beneficial."
-        )
-      )
+      # Read in recorded non-peer-review update status
+      non_peer_review_update <- reactive({
+        readRDS("non_published_update.rds")
+      })
       
-      # Top table entry for latest data
+      # Summary of latest data regardless of update
       latest_data_row <- reactive({
         current_studies <- nrow(studies()[studies()$Included_Date <= last_search_date() & studies()$Excluded_Date > last_search_date(),])
         non_peer_review_studies <- non_peer_review_update()$No_studies
@@ -88,7 +75,7 @@ home_page_server <- function(id, last_search_date, studies) {
           No_studies = nrow(studies()[studies()$Included_Date <= last_search_date() & studies()$Excluded_Date > last_search_date(),]),
           Status = status_text
         )
-        df
+        return(df)
       })
       
       
@@ -105,7 +92,6 @@ home_page_server <- function(id, last_search_date, studies) {
         
         # Reformat dates
         df[["Search Date"]] <- format(df[["Search Date"]], "%d %B %Y")
-        
         
         # Build HTML table manually
         tags$table(
@@ -135,6 +121,7 @@ home_page_server <- function(id, last_search_date, studies) {
         )
       })
       
+      
       # Version history table
       # Build table
       version_history <- reactive({
@@ -156,7 +143,7 @@ home_page_server <- function(id, last_search_date, studies) {
         return(df)
       })
       
-      # Render table
+      # Render version history table
       output$version_history_table <- renderUI({
         
         df <- version_history()
