@@ -6,25 +6,14 @@
 home_page_ui <- function(id) {
   ns = NS(id)
   div(
-    
     # UI components
     fluidRow(
-      column(7,
-             bslib::value_box( 
-               title = tags$p("Latest Data", style = "font-size: 1.6em; margin-bottom: 5px;"), 
-               value = uiOutput(ns("latest_data_table")),
-               showcase = bsicons::bs_icon("clipboard2-data"),
-              showcase_layout = showcase_left_center(width = 0.1),
-              theme = "text-success" 
-            )),
+      column(7, 
+        home_latest_data_ui(id = ns("latest_data"))
+      ),
       column(5,
-             bslib::value_box(
-               title = tags$p("Version History", style = "font-size: 1.6em; margin-bottom: 5px;"),
-               value = uiOutput(ns("version_history_table")),
-               showcase = bsicons::bs_icon("clock-history"),
-              showcase_layout = showcase_left_center(width = 0.1),
-              theme = "text-success"
-            ))
+        home_version_history_ui(id = ns("version_history"))
+      )
     )
   )
 }
@@ -50,7 +39,7 @@ home_page_server <- function(id, last_search_date, studies) {
       # Take most recent published update
       latest_published_update <- reactive({
         df <- published_updates() %>% filter(Publish_date == max(published_updates()$Publish_date)) %>% select(c("Search_date", "No_studies"))
-        df$Status <- paste0("Most recent peer-reviewed update: <a href='", published_updates()$DOI[published_updates()$Publish_date == max(published_updates()$Publish_date)], "'>link here</a>")
+        df$Status <- paste0("Most recent peer-reviewed update: <a href='", published_updates()$DOI[published_updates()$Publish_date == max(published_updates()$Publish_date)], "' target='_blank'>link here</a>")
         df
       })
       
@@ -79,55 +68,25 @@ home_page_server <- function(id, last_search_date, studies) {
       })
       
       
-      # Table of latest data
-      output$latest_data_table <- renderUI({
-        
-        # Build table #
-        df <- rbind(latest_data_row(),
+      # Build latest data table #
+      latest_data_df <- reactive({
+        rbind(latest_data_row(),
           non_peer_review_update() %>% select(c("Search_date", "No_studies")) %>% mutate(Status = "Latest update (subject to peer-review)"),
           latest_published_update())
-        
-        # Rename columns
-        colnames(df) <- c("Search Date", "No. Studies", "Status")
-        
-        # Reformat dates
-        df[["Search Date"]] <- format(df[["Search Date"]], "%d %B %Y")
-        
-        # Build HTML table manually
-        tags$table(
-          style = "width:100%; border-collapse: collapse;",
-          
-          # Header
-          tags$thead(
-            tags$tr(
-              lapply(names(df), function(col) {
-                tags$th(col,
-                        style = "text-align:left; padding:6px; font-size:15px; border-bottom:1px solid #ddd;"
-                )
-              })
-            )
-          ),
-          
-          # Body
-          tags$tbody(
-            lapply(seq_len(nrow(df)), function(i) {
-              tags$tr(
-                tags$td(df[i, 1], style = "padding:6px; font-size:13px;"),
-                tags$td(df[i, 2], style = "padding:6px; text-align:center; font-size:13px;"),
-                tags$td(HTML(df[i, 3]), style = "padding:6px; font-size:13px;") # HTML needed for the link
-              )
-            })
-          )
-        )
       })
       
+      # Render latest data table & extract input for new publication #
+      new_publication <- home_latest_data_server(
+        id = "latest_data",
+        df = latest_data_df
+      )
       
-      # Version history table
-      # Build table
-      version_history <- reactive({
+      
+      # Build version history table #
+      version_history_df <- reactive({
         # Published updates
         published <- published_updates() %>%
-          mutate(Publish_link = paste0("<a href='", DOI, "'>", format(Publish_date, "%d %b %Y"), "</a>")) %>%
+          mutate(Publish_link = paste0("<a href='", DOI, "' target = '_blank'>", format(Publish_date, "%d %b %Y"), "</a>")) %>%
           select("Publish_link", "Search_date", "Reason") 
         # Latest non-published update
         latest <- data.frame(
@@ -143,40 +102,11 @@ home_page_server <- function(id, last_search_date, studies) {
         return(df)
       })
       
-      # Render version history table
-      output$version_history_table <- renderUI({
-        
-        df <- version_history()
-        
-        # Build HTML table manually
-        tags$table(
-          style = "width:100%; border-collapse: collapse;",
-          
-          # Header
-          tags$thead(
-            tags$tr(
-              lapply(names(df), function(col) {
-                tags$th(col,
-                        style = "text-align:left; padding:6px; font-size:15px; border-bottom:1px solid #ddd;"
-                )
-              })
-            )
-          ),
-          
-          # Body
-          tags$tbody(
-            lapply(seq_len(nrow(df)), function(i) {
-              tags$tr(
-                tags$td(HTML(df[i, 1]), style = "padding:6px; font-size:13px;"), # HTML needed for the link
-                tags$td(df[i, 2], style = "padding:6px; font-size:13px;"),
-                tags$td(df[i, 3], style = "padding:6px; font-size:13px;") 
-              )
-            })
-          )
-        )
-        
-        
-      })
+      # Render version history table #
+      home_version_history_server(
+        id = "version_history",
+        df = version_history_df
+      )
     }
   )
 }
