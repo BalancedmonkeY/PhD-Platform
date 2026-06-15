@@ -134,6 +134,12 @@ home_latest_data_server <- function(id, df, non_published_update, published) {
         # Clear latest update
         latest_unpublished <- NULL
         
+        # Add to activity log
+        activity_log <- readRDS('activity_log.rds')
+        activity_log <- activity_log %>%
+          add_row(Date = input$new_published_date, Category = "Publications", Details = "User recorded that latest update has now been published in peer-reviewed journal.")
+        saveRDS(activity_log, 'activity_log.rds')
+        
         # Save new dataframes and reload app
         saveRDS(new_published_df(), "published_updates.rds")
         saveRDS(latest_unpublished, "non_published_update.rds")

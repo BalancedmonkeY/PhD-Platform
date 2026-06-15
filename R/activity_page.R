@@ -27,7 +27,8 @@ activity_page_server <- function(id) {
       output$activity_log <- DT::renderDT({
         df <- readRDS("activity_log.rds")
         df$Date <- format(df$Date, "%d %b %Y")
-        df
+        df <- df %>% arrange(desc(Date)) # arrange by default as most recent first
+        DT::datatable(df, filter = 'top')
       })
       
     }
