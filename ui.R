@@ -10,7 +10,8 @@ fluidPage(
     nav_panel("Results",
               results_page_ui(id = "results")),
     nav_panel("LSRUpdateR"),
-    nav_panel("Activity"),
+    nav_panel("Activity",
+              activity_page_ui(id = "activity")),
     nav_panel("Export"),
     title = "LivingStudios"
   )

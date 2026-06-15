@@ -17,6 +17,10 @@ function(input, output, session) {
     non_published_update_base <- readRDS("non_published_update_base.rds")
     saveRDS(non_published_update_base, "non_published_update.rds")
     
+    # Saved activity log #
+    activity_log_base <- readRDS("activity_log_base.rds")
+    saveRDS(activity_log_base, "activity_log.rds")
+    
     # Reload session
     session$reload()
     
@@ -46,6 +50,13 @@ function(input, output, session) {
   results_page_server(
     id = "results",
     data = data_object$data
+  )
+  
+  ### Activity Log Server ###
+  #--------------------------#
+  
+  activity_page_server(
+    id = "activity"
   )
 
 }
