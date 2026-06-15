@@ -1,5 +1,29 @@
 function(input, output, session) {
   
+  ### Reload Demo Data ###
+  #----------------------#
+  
+  observe({
+    
+    # Saved search data #
+    saved_date_base <- readRDS("saved_date_base.rds")
+    saveRDS(saved_date_base, "saved_date.rds")
+    
+    # Saved published data #
+    published_updates_base <- readRDS("published_updates_base.rds")
+    saveRDS(published_updates_base, "published_updates.rds")
+    
+    # Saved latest update #
+    non_published_update_base <- readRDS("non_published_update_base.rds")
+    saveRDS(non_published_update_base, "non_published_update.rds")
+    
+    # Reload session
+    session$reload()
+    
+
+  }) |>
+    bindEvent(input$reset_demo)
+  
 
   ### Load Data ###
   #---------------#
