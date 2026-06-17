@@ -21,18 +21,41 @@ function(input, output, session) {
     activity_log_base <- readRDS("activity_log_base.rds")
     saveRDS(activity_log_base, "activity_log.rds")
     
-    # Reload session
-    session$reload()
-    
+    # Notification of reloading session
+    showModal(
+      modalDialog(
+        title = "Resetting Demo",
+        footer = NULL,
+        size = "l",
+        div(
+          h5("To reset the demo data the app needs to completely close. To begin the demo again, please relaunch the app."),
+          actionButton("accept_reset", "Accept")
+        )
+      )
+    )
 
   }) |>
     bindEvent(input$reset_demo)
+  
+  observe({
+    stopApp()
+  }) |>
+    bindEvent(input$accept_reset)
+  
+  
+  ## Pass Demo Date Through ##
+  #--------------------------#
+  
+  current_date <- reactive({input$demo_date})
   
 
   ### Load Data ###
   #---------------#
   
-  data_object <- data_page_server(id = "data")
+  data_object <- data_page_server(
+    id = "data",
+    demo_date = current_date
+  )
   
   
   ### Home Page Server ###
@@ -56,7 +79,8 @@ function(input, output, session) {
   #--------------------------#
   
   activity_page_server(
-    id = "activity"
+    id = "activity",
+    activity_log = data_object$latest_activity
   )
 
 }

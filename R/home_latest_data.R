@@ -42,7 +42,7 @@ home_latest_data_server <- function(id, df, non_published_update, published) {
       output$latest_data_table <- renderUI({
         
         df <- df()
-        
+
         # Rename columns
         colnames(df) <- c("Search Date", "No. Studies", "Status")
         

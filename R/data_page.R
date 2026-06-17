@@ -6,17 +6,14 @@
 data_page_ui <- function(id) {
   ns = NS(id)
   
-  # Load saved date
-  saved_last_search_date <- readRDS("saved_date.rds")
-  
   div(
     fluidRow(
       box(
         div(
           style = "display: flex; align-items: center; gap: 12px;", # lines up widgets side by side
-          actionButton(ns("refresh_button"), "Sync Data"),
+          dateInput(ns("last_search_date"), label = "Last Search Date", format = "dd MM yyyy", value = readRDS("saved_date.rds")),
           textOutput(ns("refresh_text")),
-          dateInput(ns("last_search_date"), label = "Last Search Date", format = "dd MM yyyy", value = saved_last_search_date)
+          actionButton(ns("refresh_button"), "Sync Data")
         ),
       )
     ),
@@ -28,15 +25,24 @@ data_page_ui <- function(id) {
 #' Server for the data page.
 #'
 #' @param id ID of the module.
+#' @param demo_date Current demo date
 #'
 #' @return list containing
 #' - loaded data frame(s) (each outcome)
 #' - last search date
 #' - unique studies
-data_page_server <- function(id) {
+#' - latest activity log
+data_page_server <- function(id, demo_date) {
   moduleServer(
     id,
     function(input, output, session) {
+      
+      # Update input for last search date for when demo is reset
+      saved_last_search_date <- reactive({readRDS("saved_date.rds")})
+      observe({
+        print("Set date box")
+        updateDateInput(session, "last_search_date", value = saved_last_search_date())
+      })
       
       # Load iframe of google sheet
       output$google_sheets_data <- renderUI({
@@ -48,7 +54,7 @@ data_page_server <- function(id) {
       })
       
       # Load data from google sheet and refresh
-      data <- eventReactive(input$refresh_button, {
+      data <- eventReactive(list(input$refresh_button), {
         # Cessation data
           cess_df <- googlesheets4::read_sheet("https://docs.google.com/spreadsheets/d/1IBE4yIVd67-8bcLEqptfglM75CWGz6SOE6D8LS4FULY/edit?usp=sharing",
                                           sheet = "Cessation")
@@ -75,7 +81,7 @@ data_page_server <- function(id) {
         ignoreNULL = FALSE   # ensures it runs once at startup
       )
       
-      studies <- eventReactive(input$refresh_button, {
+      studies <- eventReactive(list(input$refresh_button), {
         # Unique studies
         studies <- googlesheets4::read_sheet("https://docs.google.com/spreadsheets/d/1IBE4yIVd67-8bcLEqptfglM75CWGz6SOE6D8LS4FULY/edit?usp=sharing",
                                              sheet = "Unique_Studies")
@@ -96,21 +102,49 @@ data_page_server <- function(id) {
       
       
       # Save search date whenever user changes date
-      observeEvent(input$last_search_date, {
+      observe({
         if (!is.null(input$last_search_date)) {
           saveRDS(input$last_search_date, "saved_date.rds")
         }
-      })
+      }) |>
+        bindEvent(input$last_search_date, ignoreInit = TRUE)
       
-      # Extract last search date and save as a reactive
-      last_search_date <- reactive({
-        input$last_search_date
-      })
+
+      # Initialise activity log
+      latest_activity <- reactiveVal(
+        readRDS('activity_log.rds')
+      )
+      
+      print("Creating server")
+      
+      # Add new data activity logs #
+      observe({
+        # Extract last data activity (and what search date was reported)
+        activity_log <- readRDS('activity_log.rds')
+        latest_data_entry_log <- activity_log %>% filter(Category == "Data") %>% filter(Date == max(Date))
+        previous_search_date <- as.Date(gsub(".*last search date to (\\d{2} [a-zA-Z]{3} \\d{4}).*", "\\1", latest_data_entry_log$Details), "%d %b %Y")
+        # Calculate number of new studies
+        current_number_studies <- nrow(studies() %>% filter(Included_Date <= input$last_search_date))
+        previous_number_studies <- nrow(studies() %>% filter(Included_Date <= previous_search_date))
+        number_new_studies <- current_number_studies - previous_number_studies
+
+        # Update activity log
+        activity_log <- activity_log %>%
+          add_row(Date = demo_date(), Category = "Data",
+                  Details = paste0("User updated the last search date to ", format(input$last_search_date, "%d %b %Y"), ". This gave ", number_new_studies, " new study/ies added."))
+        saveRDS(activity_log, 'activity_log.rds')
+        latest_activity(activity_log)
+        print("updates latest activity")
+        print(latest_activity())
+      })  |>
+        bindEvent(input$last_search_date, ignoreNULL = TRUE, ignoreInit = TRUE)
       
       return(list(
         data = data,
-        last_search_date = last_search_date,
-        studies = studies)
+        last_search_date = reactive({input$last_search_date}),
+        studies = studies,
+        latest_activity = latest_activity
+        )
       )
     }
   )
