@@ -1,21 +1,21 @@
-fluidPage(
+ui <- fluidPage(
   div(
     style = "passing: 0px; position: absolute; top: 5px; right: 5px; z-index:10000; display: flex; align-items: center; gap: 12px;", # ensures no gap, puts into top right, and lines up elements
     p("Demo Date"),
     dateInput("demo_date", label = NULL, value = "2023-12-01"),
     actionButton("reset_demo", "Reset Demo")
   ),
-  page_navbar( 
-    nav_panel("Home",
+  page_navbar(id = "app_navbar", 
+    nav_panel(title = "Home", value = "home_page",
               home_page_ui(id = "home")), 
-    nav_panel("Data",
+    nav_panel(title = "Data", value = "data_page",
               data_page_ui(id = "data")), 
-    nav_panel("Results",
+    nav_panel(title = "Results", value = "results_page", 
               results_page_ui(id = "results")),
-    nav_panel("LSRUpdateR"),
-    nav_panel("Activity",
+    nav_panel(title = "LSRUpdateR", value = "lsrupdater_page"),
+    nav_panel(title = "Activity", value = "activity_page",
               activity_page_ui(id = "activity")),
-    nav_panel("Export"),
+    nav_panel(title = "Export", value = "export_page"),
     title = "LivingStudios"
   )
 )

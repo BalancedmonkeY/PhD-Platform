@@ -1,4 +1,4 @@
-function(input, output, session) {
+server <- function(input, output, session) {
   
   ### Reload Demo Data ###
   #----------------------#
@@ -64,7 +64,8 @@ function(input, output, session) {
   home_page_server(
     id = "home",
     last_search_date = data_object$last_search_date,
-    studies = data_object$studies)
+    studies = data_object$studies,
+    parent_session = session)
   
   
   ### Present Results ###

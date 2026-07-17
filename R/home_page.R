@@ -12,6 +12,7 @@ home_page_ui <- function(id) {
         home_latest_data_ui(id = ns("latest_data"))
       ),
       column(5,
+        home_latest_activity_ui(id = ns("latest_activity")),
         home_version_history_ui(id = ns("version_history"))
       )
     )
@@ -24,12 +25,16 @@ home_page_ui <- function(id) {
 #' @param id ID of the module
 #' @param last_search_date Reactive date for most recent search
 #' @param studies Reactive dataframe of unique studies that are included in the review
+#' @param parent_session Parameter to pass the app session through to the other modules
 #'
 #' @return nothing yet
-home_page_server <- function(id, last_search_date, studies) {
+home_page_server <- function(id, last_search_date, studies, parent_session) {
   moduleServer(
     id,
     function(input, output, session) {
+      
+      ### Latest Data ###
+      #-----------------#
       
       # Read in recorded table of published updates
       published_updates <- reactive({
@@ -91,6 +96,9 @@ home_page_server <- function(id, last_search_date, studies) {
       )
       
       
+      ### Version History ###
+      #---------------------#
+      
       # Build version history table #
       version_history_df <- reactive({
         # Published updates
@@ -121,6 +129,22 @@ home_page_server <- function(id, last_search_date, studies) {
       home_version_history_server(
         id = "version_history",
         df = version_history_df
+      )
+      
+      
+      ### Latest Activity ###
+      #---------------------#
+      
+      # Read in current activity log
+      activity_log <- reactive({
+        readRDS("activity_log.rds")
+      })
+      
+      # Render latest activity box
+      home_latest_activity_server(
+        id = "latest_activity",
+        activity_df = activity_log,
+        parent_session = parent_session
       )
     }
   )

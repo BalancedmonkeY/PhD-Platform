@@ -31,8 +31,6 @@ activity_page_server <- function(id, activity_log) {
       
       # Render activity log
       output$activity_log <- DT::renderDT({
-        print("Received latest activity")
-        print(activity_log())
         df <- activity_log() %>% arrange(desc(Date)) # arrange by default as most recent first
         df$Date <- format(df$Date, "%d %b %Y")
         DT::datatable(df, filter = 'top')

@@ -40,7 +40,6 @@ data_page_server <- function(id, demo_date) {
       # Update input for last search date for when demo is reset
       saved_last_search_date <- reactive({readRDS("saved_date.rds")})
       observe({
-        print("Set date box")
         updateDateInput(session, "last_search_date", value = saved_last_search_date())
       })
       
@@ -114,9 +113,7 @@ data_page_server <- function(id, demo_date) {
       latest_activity <- reactiveVal(
         readRDS('activity_log.rds')
       )
-      
-      print("Creating server")
-      
+
       # Add new data activity logs #
       observe({
         # Extract last data activity (and what search date was reported)
