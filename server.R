@@ -21,6 +21,10 @@ server <- function(input, output, session) {
     activity_log_base <- readRDS("activity_log_base.rds")
     saveRDS(activity_log_base, "activity_log.rds")
     
+    # Saved protocol updates #
+    protocol_updates_base <- readRDS("protocol_updates_base.rds")
+    saveRDS(protocol_updates_base, "protocol_updates.rds")
+    
     # Notification of reloading session
     showModal(
       modalDialog(

@@ -13,6 +13,7 @@ home_page_ui <- function(id) {
       ),
       column(5,
         home_latest_activity_ui(id = ns("latest_activity")),
+        home_protocol_ui(id = ns("protocol")),
         home_version_history_ui(id = ns("version_history"))
       )
     )
@@ -145,6 +146,21 @@ home_page_server <- function(id, last_search_date, studies, parent_session) {
         id = "latest_activity",
         activity_df = activity_log,
         parent_session = parent_session
+      )
+      
+      
+      ### Protocol ###
+      #--------------#
+      
+      # Read in current table of protocol details
+      protocol_updates <- reactive({
+        readRDS("protocol_updates.rds")
+      })
+      
+      # Render protocol updates box
+      home_protocol_server(
+        id = "protocol",
+        protocol_df = protocol_updates
       )
     }
   )
