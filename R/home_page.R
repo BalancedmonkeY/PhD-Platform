@@ -24,12 +24,14 @@ home_page_ui <- function(id) {
 #' Server for the home page.
 #'
 #' @param id ID of the module
+#' @param demo_date The current date for the demo
+#' @param activity Reactive activity log
 #' @param last_search_date Reactive date for most recent search
 #' @param studies Reactive dataframe of unique studies that are included in the review
 #' @param parent_session Parameter to pass the app session through to the other modules
 #'
 #' @return nothing yet
-home_page_server <- function(id, last_search_date, studies, parent_session) {
+home_page_server <- function(id, demo_date, activity, last_search_date, studies, parent_session) {
   moduleServer(
     id,
     function(input, output, session) {
@@ -91,6 +93,8 @@ home_page_server <- function(id, last_search_date, studies, parent_session) {
       # Render latest data table #
       new_publication <- home_latest_data_server(
         id = "latest_data",
+        demo_date = demo_date,
+        activity = activity,
         df = latest_data_df,
         non_published_update = non_peer_review_update,
         published = published_updates
@@ -136,15 +140,10 @@ home_page_server <- function(id, last_search_date, studies, parent_session) {
       ### Latest Activity ###
       #---------------------#
       
-      # Read in current activity log
-      activity_log <- reactive({
-        readRDS("activity_log.rds")
-      })
-      
       # Render latest activity box
       home_latest_activity_server(
         id = "latest_activity",
-        activity_df = activity_log,
+        activity_df = activity,
         parent_session = parent_session
       )
       
@@ -160,6 +159,8 @@ home_page_server <- function(id, last_search_date, studies, parent_session) {
       # Render protocol updates box
       home_protocol_server(
         id = "protocol",
+        demo_date = demo_date,
+        activity = activity,
         protocol_df = protocol_updates
       )
     }

@@ -26,7 +26,7 @@ home_latest_activity_ui <- function(id) {
 #' Server for the latest activity section of the home page.
 #'
 #' @param id ID of the module
-#' @param activity_df Dataframe of the activity log
+#' @param activity_df Reactive dataframe of the activity log
 #' @param parent_session Parameter to pass the app session through to the other modules
 #'
 #' @return nothing

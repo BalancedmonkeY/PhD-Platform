@@ -27,12 +27,14 @@ home_latest_data_ui <- function(id) {
 #' Server for the latest data section of the home page.
 #'
 #' @param id ID of the module
+#' @param demo_date Current date of demo
+#' @param activity Reactive activity log
 #' @param df Dataframe of the latest data
 #' @param non_published_update Dataframe summary of latest non peer-reviewed update
 #' @param published Dataframe of all published updates
 #'
 #' @return published checkbox input value
-home_latest_data_server <- function(id, df, non_published_update, published) {
+home_latest_data_server <- function(id, demo_date, activity, df, non_published_update, published) {
   moduleServer(
     id,
     function(input, output, session) {
@@ -102,7 +104,7 @@ home_latest_data_server <- function(id, df, non_published_update, published) {
                 br(),
                 paste0("Reason for update: ", non_published_update()$Reason),
                 br(), br(),
-                dateInput(ns("new_published_date"), "Publication Date", value = Sys.Date()),
+                dateInput(ns("new_published_date"), "Publication Date", value = demo_date()),
                 textInput(ns("new_DOI"), "URL", placeholder = "Enter URL for update here..."),
                 actionButton(ns("submit_new_published_update"), "Submit Update")
               )
@@ -135,10 +137,9 @@ home_latest_data_server <- function(id, df, non_published_update, published) {
         latest_unpublished <- NULL
         
         # Add to activity log
-        activity_log <- readRDS('activity_log.rds')
-        activity_log <- activity_log %>%
+        activity_log <- activity() %>%
           add_row(Date = input$new_published_date, Category = "Publications", Details = "User recorded that latest update has now been published in peer-reviewed journal.")
-        saveRDS(activity_log, 'activity_log.rds')
+        activity(activity_log)
         
         # Save new dataframes and reload app
         saveRDS(new_published_df(), "published_updates.rds")

@@ -36,10 +36,12 @@ home_protocol_ui <- function(id) {
 #' Server for the latest activity section of the home page.
 #'
 #' @param id ID of the module
+#' @param demo_date Current date of the demo
+#' @param activity Reactive activity log
 #' @param protocol_df Dataframe of the protocol changes
 #'
 #' @return new protocol change input value
-home_protocol_server <- function(id, protocol_df) {
+home_protocol_server <- function(id, demo_date, activity, protocol_df) {
   moduleServer(
     id,
     function(input, output, session) {
@@ -67,7 +69,7 @@ home_protocol_server <- function(id, protocol_df) {
             size = "l",
             easy_close = TRUE,
             div(
-               dateInput(ns("new_protocol_date"), "Protocol Change Date", value = Sys.Date()),
+               dateInput(ns("new_protocol_date"), "Protocol Change Date", value = demo_date()),
                textInput(ns("new_protocol_change"), "Details of Change", placeholder = "Please add details of the protocol change(s) here..."),
                actionButton(ns("submit_protocol_update"), "Submit Update")
             )
@@ -90,10 +92,9 @@ home_protocol_server <- function(id, protocol_df) {
           rbind(new_protocol_update(), protocol_df())
         })
         # Add to activity log
-        activity_log <- readRDS('activity_log.rds')
-        activity_log <- activity_log %>%
+        activity_log <- activity() %>%
           add_row(Date = input$new_protocol_date, Category = "Protocol", Details = paste0("User added a change to the protocol. ", input$new_protocol_change))
-        saveRDS(activity_log, 'activity_log.rds')
+        activity(activity_log)
           
         # Save new dataframes and reload app
         saveRDS(new_protocol_df(), "protocol_updates.rds")

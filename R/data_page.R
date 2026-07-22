@@ -8,14 +8,13 @@ data_page_ui <- function(id) {
   
   div(
     fluidRow(
-      box(
-        div(
-          style = "display: flex; align-items: center; gap: 12px;", # lines up widgets side by side
-          dateInput(ns("last_search_date"), label = "Last Search Date", format = "dd MM yyyy", value = readRDS("saved_date.rds")),
-          textOutput(ns("refresh_text")),
-          actionButton(ns("refresh_button"), "Sync Data")
-        ),
-      )
+      div(
+        style = "display: flex; align-items: center; gap: 12px;", # lines up widgets side by side
+        dateInput(ns("last_search_date"), label = "Last Search Date", format = "dd MM yyyy", value = readRDS("search_date.rds")),
+        textOutput(ns("refresh_text")),
+        actionButton(ns("refresh_button"), "Sync Data"),
+        p("Please sync data before moving on to ensure everything is saved")
+      ),
     ),
     htmlOutput(ns("google_sheets_data"))
   )
@@ -26,19 +25,20 @@ data_page_ui <- function(id) {
 #'
 #' @param id ID of the module.
 #' @param demo_date Current demo date
+#' @param activity Reactive activity log
 #'
 #' @return list containing
 #' - loaded data frame(s) (each outcome)
 #' - last search date
 #' - unique studies
 #' - latest activity log
-data_page_server <- function(id, demo_date) {
+data_page_server <- function(id, demo_date, activity) {
   moduleServer(
     id,
     function(input, output, session) {
       
       # Update input for last search date for when demo is reset
-      saved_last_search_date <- reactive({readRDS("saved_date.rds")})
+      saved_last_search_date <- reactive({readRDS("search_date.rds")})
       observe({
         updateDateInput(session, "last_search_date", value = saved_last_search_date())
       })
@@ -103,22 +103,16 @@ data_page_server <- function(id, demo_date) {
       # Save search date whenever user changes date
       observe({
         if (!is.null(input$last_search_date)) {
-          saveRDS(input$last_search_date, "saved_date.rds")
+          saveRDS(input$last_search_date, "search_date.rds")
         }
       }) |>
         bindEvent(input$last_search_date, ignoreInit = TRUE)
       
 
-      # Initialise activity log
-      latest_activity <- reactiveVal(
-        readRDS('activity_log.rds')
-      )
-
       # Add new data activity logs #
       observe({
         # Extract last data activity (and what search date was reported)
-        activity_log <- readRDS('activity_log.rds')
-        latest_data_entry_log <- activity_log %>% filter(Category == "Data") %>% filter(Date == max(Date))
+        latest_data_entry_log <- activity() %>% filter(Category == "Data") %>% filter(Date == max(Date))
         previous_search_date <- as.Date(gsub(".*last search date to (\\d{2} [a-zA-Z]{3} \\d{4}).*", "\\1", latest_data_entry_log$Details), "%d %b %Y")
         # Calculate number of new studies
         current_number_studies <- nrow(studies() %>% filter(Included_Date <= input$last_search_date))
@@ -126,21 +120,17 @@ data_page_server <- function(id, demo_date) {
         number_new_studies <- current_number_studies - previous_number_studies
 
         # Update activity log
-        activity_log <- activity_log %>%
+        new_activity_df <- activity() %>%
           add_row(Date = demo_date(), Category = "Data",
                   Details = paste0("User updated the last search date to ", format(input$last_search_date, "%d %b %Y"), ". This gave ", number_new_studies, " new study/ies added."))
-        saveRDS(activity_log, 'activity_log.rds')
-        latest_activity(activity_log)
-        print("updates latest activity")
-        print(latest_activity())
+        activity(new_activity_df)
       })  |>
-        bindEvent(input$last_search_date, ignoreNULL = TRUE, ignoreInit = TRUE)
+        bindEvent(input$refresh_button, ignoreNULL = TRUE, ignoreInit = TRUE)
       
       return(list(
         data = data,
         last_search_date = reactive({input$last_search_date}),
-        studies = studies,
-        latest_activity = latest_activity
+        studies = studies
         )
       )
     }

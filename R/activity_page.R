@@ -6,8 +6,8 @@
 activity_page_ui <- function(id) {
   ns = NS(id)
   div(
+    p("Below is the activity log. It contains all decisions made and activities conducting whilst using this LivingStudio."),
     # UI components
-    textOutput(ns("activity_intro")),
     DT::DTOutput(ns("activity_log"))
   )
 }
@@ -23,11 +23,6 @@ activity_page_server <- function(id, activity_log) {
   moduleServer(
     id,
     function(input, output, session) {
-      
-      # Activity log intro
-      output$activity_intro <- renderText({
-        paste("Below is the activity log. It contains all decisions made and activities conducting whilst using this LivingStudio.")
-      })
       
       # Render activity log
       output$activity_log <- DT::renderDT({
