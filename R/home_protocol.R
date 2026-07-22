@@ -97,6 +97,9 @@ home_protocol_server <- function(id, demo_date, activity, protocol_df) {
           
         # Save new dataframe to reactiveVal
         protocol_df(new_protocol_df())
+        
+        # Close Modal
+        removeModal()
           
         }) |>
           bindEvent(input$submit_protocol_update)

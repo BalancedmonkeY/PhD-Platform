@@ -145,6 +145,9 @@ home_latest_data_server <- function(id, demo_date, activity, df, non_published_u
         published(new_published_df())
         non_published_update(latest_unpublished)
         
+        # Close Modal
+        removeModal()
+        
       }) |>
         bindEvent(input$submit_new_published_update)
       
