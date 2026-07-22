@@ -30,8 +30,8 @@ home_latest_data_ui <- function(id) {
 #' @param demo_date Current date of demo
 #' @param activity Reactive activity log
 #' @param df Dataframe of the latest data
-#' @param non_published_update Dataframe summary of latest non peer-reviewed update
-#' @param published Dataframe of all published updates
+#' @param non_published_update Reactive dataframe summary of latest non peer-reviewed update
+#' @param published Reactive dataframe of all published updates
 #'
 #' @return published checkbox input value
 home_latest_data_server <- function(id, demo_date, activity, df, non_published_update, published) {
@@ -141,10 +141,9 @@ home_latest_data_server <- function(id, demo_date, activity, df, non_published_u
           add_row(Date = input$new_published_date, Category = "Publications", Details = "User recorded that latest update has now been published in peer-reviewed journal.")
         activity(activity_log)
         
-        # Save new dataframes and reload app
-        saveRDS(new_published_df(), "published_updates.rds")
-        saveRDS(latest_unpublished, "non_published_update.rds")
-        session$reload()
+        # Save new dataframes to reactive values
+        published(new_published_df())
+        non_published_update(latest_unpublished)
         
       }) |>
         bindEvent(input$submit_new_published_update)

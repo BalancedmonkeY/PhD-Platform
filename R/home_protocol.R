@@ -38,7 +38,7 @@ home_protocol_ui <- function(id) {
 #' @param id ID of the module
 #' @param demo_date Current date of the demo
 #' @param activity Reactive activity log
-#' @param protocol_df Dataframe of the protocol changes
+#' @param protocol_df Reactive dataframe of the protocol changes
 #'
 #' @return new protocol change input value
 home_protocol_server <- function(id, demo_date, activity, protocol_df) {
@@ -51,11 +51,10 @@ home_protocol_server <- function(id, demo_date, activity, protocol_df) {
       output$protocol_changes_content <- renderText({
         
         # Sort protocol details
-        protocol_df <- protocol_df()
-        protocol_df <- protocol_df %>% arrange(desc(Date))
+        protocol_details <- protocol_df() %>% arrange(desc(Date))
         
         # Print protocol changes
-        paste0("<b>", format(protocol_df$Date, "%b %Y"), "</b>: ", protocol_df$Update, collapse = "<br>")
+        paste0("<b>", format(protocol_details$Date, "%b %Y"), "</b>: ", protocol_details$Update, collapse = "<br>")
 
       })
         
@@ -96,9 +95,8 @@ home_protocol_server <- function(id, demo_date, activity, protocol_df) {
           add_row(Date = input$new_protocol_date, Category = "Protocol", Details = paste0("User added a change to the protocol. ", input$new_protocol_change))
         activity(activity_log)
           
-        # Save new dataframes and reload app
-        saveRDS(new_protocol_df(), "protocol_updates.rds")
-        session$reload()
+        # Save new dataframe to reactiveVal
+        protocol_df(new_protocol_df())
           
         }) |>
           bindEvent(input$submit_protocol_update)

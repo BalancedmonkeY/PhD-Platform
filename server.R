@@ -6,7 +6,7 @@ server <- function(input, output, session) {
   observe({
     
     # Demo date #
-    base_demo <- as.Date("2023-12-01")
+    base_demo <- as.Date("2023-12-31")
     saveRDS(base_demo, "demo_date.rds")
     
     # Saved search date #
