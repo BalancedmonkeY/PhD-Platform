@@ -171,6 +171,11 @@ home_page_server <- function(id, demo_date, activity, last_search_date, studies,
         saveRDS(non_peer_review_update(), 'non_published_update.rds')
         saveRDS(protocol_updates(), 'protocol_updates.rds')
       })
+      
+      # Return any objects
+      return(list(
+        latest_data_df = latest_data_df
+      ))
     }
   )
 }

@@ -93,7 +93,7 @@ server <- function(input, output, session) {
   ### Home Page Server ###
   #----------------------#
   
-  home_page_server(
+  home_obj <- home_page_server(
     id = "home",
     demo_date = current_date,
     activity = latest_activity,
@@ -107,7 +107,9 @@ server <- function(input, output, session) {
   
   results_page_server(
     id = "results",
-    data = data_object$data
+    data = data_object$data,
+    studies = data_object$studies,
+    latest_data_df = home_obj$latest_data_df
   )
   
   ### Activity Log Server ###
