@@ -29,6 +29,10 @@ server <- function(input, output, session) {
     protocol_updates_base <- readRDS("protocol_updates_base.rds")
     saveRDS(protocol_updates_base, "protocol_updates.rds")
     
+    # Saves summary of results #
+    results_summary_base <- readRDS("results_summary_base.rds")
+    saveRDS(results_summary_base, "results_summary.rds")
+    
     # Notification of reloading session
     showModal(
       modalDialog(
@@ -79,6 +83,13 @@ server <- function(input, output, session) {
     readRDS('activity_log.rds')
   )
   
+  ## Initialise Summary of Results ##
+  #---------------------------------#
+  
+  results_summary <- reactiveVal(
+    readRDS("results_summary.rds")
+  )
+  
 
   ### Load Data ###
   #---------------#
@@ -99,6 +110,7 @@ server <- function(input, output, session) {
     activity = latest_activity,
     last_search_date = data_object$last_search_date,
     studies = data_object$studies,
+    results_summary = results_summary,
     parent_session = session)
   
   
@@ -123,6 +135,18 @@ server <- function(input, output, session) {
   # Save activity log for future loads
   observe({
     saveRDS(latest_activity(), 'activity_log.rds')
+  })
+  
+  
+  ### LSRUpdateR Server ###
+  #-----------------------#
+  
+  
+  
+  
+  # Save summary of results for future loads
+  observe({
+    saveRDS(results_summary(), "results_summary.rds")
   })
   
 

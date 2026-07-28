@@ -9,7 +9,8 @@ home_page_ui <- function(id) {
     # UI components
     fluidRow(
       column(7, 
-        home_latest_data_ui(id = ns("latest_data"))
+        home_latest_data_ui(id = ns("latest_data")),
+        home_latest_results_ui(id = ns("results"))
       ),
       column(5,
         home_latest_activity_ui(id = ns("latest_activity")),
@@ -28,10 +29,11 @@ home_page_ui <- function(id) {
 #' @param activity Reactive activity log
 #' @param last_search_date Reactive date for most recent search
 #' @param studies Reactive dataframe of unique studies that are included in the review
+#' @param results_summary Reactive dataframe of summary of results
 #' @param parent_session Parameter to pass the app session through to the other modules
 #'
 #' @return nothing yet
-home_page_server <- function(id, demo_date, activity, last_search_date, studies, parent_session) {
+home_page_server <- function(id, demo_date, activity, last_search_date, studies, results_summary, parent_session) {
   moduleServer(
     id,
     function(input, output, session) {
@@ -172,10 +174,23 @@ home_page_server <- function(id, demo_date, activity, last_search_date, studies,
         saveRDS(protocol_updates(), 'protocol_updates.rds')
       })
       
+      
+      ### Latest Results ###
+      #--------------------#
+      
+      # Render latest results box
+      home_latest_results_server(
+        id = "results",
+        results_summary = results_summary,
+        latest_data_df = latest_data_df
+      )
+      
+      
       # Return any objects
       return(list(
         latest_data_df = latest_data_df
       ))
+      
     }
   )
 }
