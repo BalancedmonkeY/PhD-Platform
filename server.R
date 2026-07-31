@@ -141,8 +141,11 @@ server <- function(input, output, session) {
   ### LSRUpdateR Server ###
   #-----------------------#
   
-  
-  
+  LSRUpdateR_page_server(
+    id = "LSRUpdateR",
+    parent_session = session,
+    activity = latest_activity
+  )
   
   # Save summary of results for future loads
   observe({
