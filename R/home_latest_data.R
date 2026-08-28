@@ -18,7 +18,7 @@ home_latest_data_ui <- function(id) {
         )),
       showcase = bsicons::bs_icon("clipboard2-data"),
       showcase_layout = showcase_left_center(width = 0.1),
-      theme = "text-success" 
+      theme = "text-primary" 
     )
   )
 }

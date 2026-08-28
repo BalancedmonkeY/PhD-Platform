@@ -31,16 +31,26 @@ LSRUpdateR_home_ui <- function(id) {
         ),
         showcase = bsicons::bs_icon("activity"),
         showcase_layout = showcase_left_center(width = 0.1),
-        theme = "text-success"
+        theme = "text-primary"
       )
     ),
     column(8,
            
       # Threshold settings
-      LSRUpdateR_home_thresholds_ui(id = ns("thresholds")),
+      div(style = "margin-bottom: 20px;",
+        LSRUpdateR_home_thresholds_ui(id = ns("thresholds"))
+      ),
       
       # Latest data
-      htmlOutput(ns("latest_data_content"))
+      bslib::value_box( 
+        title = tags$p("Latest Data", style = "font-size: 1.6em; margin-bottom: 5px;"), 
+        value = div(
+          # Table of latest data
+          uiOutput(ns("latest_data_content"))),
+        showcase = bsicons::bs_icon("clipboard2-data"),
+        showcase_layout = showcase_left_center(width = 0.1),
+        theme = "text-primary" 
+      )
            
     )
   )
@@ -53,9 +63,10 @@ LSRUpdateR_home_ui <- function(id) {
 #' @param LSRUpdateR_session Session from LSRUpdateR page (needed for navbar_select)
 #' @param parent_session Session from home page (needed for navbar_select)
 #' @param activity_df Reactive dataframe of the activity log
+#' @param latest_data_df Reactive dataframe of summarised latest data
 #'
 #' @return 
-LSRUpdateR_home_server <- function(id, LSRUpdateR_session, parent_session, activity_df) {
+LSRUpdateR_home_server <- function(id, LSRUpdateR_session, parent_session, activity_df, latest_data_df) {
   moduleServer(
     id,
     function(input, output, session) {
@@ -108,9 +119,7 @@ LSRUpdateR_home_server <- function(id, LSRUpdateR_session, parent_session, activ
           paste0("<b>", format(displayed_activity$Date, "%d %b %Y"), "</b>: ", displayed_activity$Details,
             collapse = "<br>"
           )
-
         }
-        
       })
       
       # Take user to activity log #
@@ -122,9 +131,54 @@ LSRUpdateR_home_server <- function(id, LSRUpdateR_session, parent_session, activ
       ### Threshold server ###
       #----------------------#
       
-      LSRUpdateR_home_thresholds_server(
+      thresholds <- LSRUpdateR_home_thresholds_server(
         id = "thresholds"
       )
+      
+      
+      ### Latest Data Summary ###
+      #-------------------------#
+      
+      output$latest_data_content <- renderUI({
+        
+        df <- latest_data_df()
+        
+        # Rename columns
+        colnames(df) <- c("Search Date", "No. Studies", "Status")
+        
+        # Reformat dates
+        df[["Search Date"]] <- format(df[["Search Date"]], "%d %B %Y")
+        
+        div(
+          # Build HTML table manually
+          tags$table(
+            style = "width:100%; border-collapse: collapse;",
+            
+            # Header
+            tags$thead(
+              tags$tr(
+                lapply(names(df), function(col) {
+                  tags$th(col,
+                          style = "text-align:left; padding:6px; font-size:15px; border-bottom:1px solid #ddd;"
+                  )
+                })
+              )
+            ),
+            
+            # Body
+            tags$tbody(
+              lapply(seq_len(nrow(df)), function(i) {
+                tags$tr(
+                  tags$td(df[i, 1], style = "padding:6px; font-size:13px;"),
+                  tags$td(df[i, 2], style = "padding:6px; text-align:center; font-size:13px;"),
+                  tags$td(HTML(df[i, 3]), style = "padding:6px; font-size:13px;") # HTML needed for the link
+                )
+              })
+            )
+          )
+        )
+        
+      })
       
     }
   )

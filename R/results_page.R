@@ -7,7 +7,7 @@ results_page_ui <- function(id) {
   ns = NS(id)
   div(
     bslib::card(
-      class = "bg-success bg-opacity-10 text-dark",
+      class = "bg-primary bg-opacity-10 text-dark",
       htmlOutput(ns("update_summary_text"))
     ),
     uiOutput(ns("peer_review_warning")),

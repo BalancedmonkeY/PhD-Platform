@@ -43,7 +43,7 @@ home_page_server <- function(id, demo_date, activity, last_search_date, studies,
       
       # Read in recorded table of published updates
       published_updates <- reactiveVal(
-        readRDS("published_updates.rds")
+        readRDS("Saved_dfs/published_updates.rds")
       )
       
       # Take most recent published update
@@ -55,7 +55,7 @@ home_page_server <- function(id, demo_date, activity, last_search_date, studies,
       
       # Read in recorded non-peer-review update status
       non_peer_review_update <- reactiveVal(
-        readRDS("non_published_update.rds")
+        readRDS("Saved_dfs/non_published_update.rds")
       )
       
       # Summary of latest data regardless of update
@@ -155,7 +155,7 @@ home_page_server <- function(id, demo_date, activity, last_search_date, studies,
       
       # Read in current table of protocol details
       protocol_updates <- reactiveVal(
-        readRDS("protocol_updates.rds")
+        readRDS("Saved_dfs/protocol_updates.rds")
       )
       
       # Render protocol updates box
@@ -169,9 +169,9 @@ home_page_server <- function(id, demo_date, activity, last_search_date, studies,
       # Save activity log for future loads
       
       observe({
-        saveRDS(published_updates(), 'published_updates.rds')
-        saveRDS(non_peer_review_update(), 'non_published_update.rds')
-        saveRDS(protocol_updates(), 'protocol_updates.rds')
+        saveRDS(published_updates(), 'Saved_dfs/published_updates.rds')
+        saveRDS(non_peer_review_update(), 'Saved_dfs/non_published_update.rds')
+        saveRDS(protocol_updates(), 'Saved_dfs/protocol_updates.rds')
       })
       
       

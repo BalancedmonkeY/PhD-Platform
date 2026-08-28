@@ -10,7 +10,7 @@ data_page_ui <- function(id) {
     fluidRow(
       div(
         style = "display: flex; align-items: center; gap: 12px;", # lines up widgets side by side
-        dateInput(ns("last_search_date"), label = "Last Search Date", format = "dd MM yyyy", value = readRDS("search_date.rds")),
+        dateInput(ns("last_search_date"), label = "Last Search Date", format = "dd MM yyyy", value = readRDS("Saved_dfs/search_date.rds")),
         textOutput(ns("refresh_text")),
         actionButton(ns("refresh_button"), "Sync Data"),
         p("Please sync data before moving on to ensure everything is saved")
@@ -38,7 +38,7 @@ data_page_server <- function(id, demo_date, activity) {
     function(input, output, session) {
       
       # Update input for last search date for when demo is reset
-      saved_last_search_date <- reactive({readRDS("search_date.rds")})
+      saved_last_search_date <- reactive({readRDS("Saved_dfs/search_date.rds")})
       observe({
         updateDateInput(session, "last_search_date", value = saved_last_search_date())
       })
@@ -103,7 +103,7 @@ data_page_server <- function(id, demo_date, activity) {
       # Save search date whenever user changes date
       observe({
         if (!is.null(input$last_search_date)) {
-          saveRDS(input$last_search_date, "search_date.rds")
+          saveRDS(input$last_search_date, "Saved_dfs/search_date.rds")
         }
       }) |>
         bindEvent(input$last_search_date, ignoreInit = TRUE)

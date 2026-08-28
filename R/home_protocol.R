@@ -28,7 +28,7 @@ home_protocol_ui <- function(id) {
       ),
       showcase = bsicons::bs_icon("file-earmark-medical"),
       showcase_layout = showcase_left_center(width = 0.1),
-      theme = "text-success"
+      theme = "text-primary"
     )
   )
 }

@@ -11,7 +11,7 @@ home_version_history_ui <- function(id) {
       value = uiOutput(ns("version_history_table")),
       showcase = bsicons::bs_icon("clock-history"),
       showcase_layout = showcase_left_center(width = 0.1),
-      theme = "text-success"
+      theme = "text-primary"
     )
   )
 }

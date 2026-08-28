@@ -14,7 +14,7 @@ home_latest_results_ui <- function(id) {
               ),
       showcase = bsicons::bs_icon("graph-up-arrow"),
       showcase_layout = showcase_left_center(width = 0.1),
-      theme = "text-success"
+      theme = "text-primary"
     )
   )
 }

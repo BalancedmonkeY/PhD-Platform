@@ -30,9 +30,10 @@ LSRUpdateR_page_ui <- function(id) {
 #' @param id ID of the module
 #' @param parent_session Session from home page (needed for navbar_select)
 #' @param activity Reactive activity log
+#' @param latest_data_df Reactive dataframe of summarised latest data
 #'
 #' @return 
-LSRUpdateR_page_server <- function(id, parent_session, activity) {
+LSRUpdateR_page_server <- function(id, parent_session, activity, latest_data_df) {
   moduleServer(
     id,
     function(input, output, session) {
@@ -43,7 +44,8 @@ LSRUpdateR_page_server <- function(id, parent_session, activity) {
         id = "home_page",
         LSRUpdateR_session = session,
         parent_session = parent_session,
-        activity_df = activity
+        activity_df = activity,
+        latest_data_df = latest_data_df
       )
 
       ## Results page ##

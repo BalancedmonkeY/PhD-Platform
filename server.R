@@ -7,31 +7,39 @@ server <- function(input, output, session) {
     
     # Demo date #
     base_demo <- as.Date("2023-12-31")
-    saveRDS(base_demo, "demo_date.rds")
+    saveRDS(base_demo, "Saved_dfs/demo_date.rds")
     
     # Saved search date #
-    search_date_base <- readRDS("search_date_base.rds")
-    saveRDS(search_date_base, "search_date.rds")
+    search_date_base <- readRDS("Saved_dfs/search_date_base.rds")
+    saveRDS(search_date_base, "Saved_dfs/search_date.rds")
     
     # Saved published data #
-    published_updates_base <- readRDS("published_updates_base.rds")
-    saveRDS(published_updates_base, "published_updates.rds")
+    published_updates_base <- readRDS("Saved_dfs/published_updates_base.rds")
+    saveRDS(published_updates_base, "Saved_dfs/published_updates.rds")
     
     # Saved latest update #
-    non_published_update_base <- readRDS("non_published_update_base.rds")
-    saveRDS(non_published_update_base, "non_published_update.rds")
+    non_published_update_base <- readRDS("Saved_dfs/non_published_update_base.rds")
+    saveRDS(non_published_update_base, "Saved_dfs/non_published_update.rds")
     
     # Saved activity log #
-    activity_log_base <- readRDS("activity_log_base.rds")
-    saveRDS(activity_log_base, "activity_log.rds")
+    activity_log_base <- readRDS("Saved_dfs/activity_log_base.rds")
+    saveRDS(activity_log_base, "Saved_dfs/activity_log.rds")
     
     # Saved protocol updates #
-    protocol_updates_base <- readRDS("protocol_updates_base.rds")
-    saveRDS(protocol_updates_base, "protocol_updates.rds")
+    protocol_updates_base <- readRDS("Saved_dfs/protocol_updates_base.rds")
+    saveRDS(protocol_updates_base, "Saved_dfs/protocol_updates.rds")
     
     # Saves summary of results #
-    results_summary_base <- readRDS("results_summary_base.rds")
-    saveRDS(results_summary_base, "results_summary.rds")
+    results_summary_base <- readRDS("Saved_dfs/results_summary_base.rds")
+    saveRDS(results_summary_base, "Saved_dfs/results_summary.rds")
+    
+    # Lock status
+    lock_base <- readRDS("Saved_dfs/lock_base.rds")
+    saveRDS(lock_base, "Saved_dfs/lock.rds")
+    
+    # Saved thresholds
+    thresholds_base <- readRDS("Saved_dfs/thresholds_base.rds")
+    saveRDS(thresholds_base, "Saved_dfs/thresholds.rds")
     
     # Notification of reloading session
     showModal(
@@ -61,13 +69,13 @@ server <- function(input, output, session) {
   # Save demo date whenever user changes date
   observe({
     if (!is.null(input$demo_date)) {
-      saveRDS(input$demo_date, "demo_date.rds")
+      saveRDS(input$demo_date, "Saved_dfs/demo_date.rds")
     }
   }) |>
     bindEvent(input$demo_date, ignoreInit = TRUE)
   
   # Keep demo date up to date
-  saved_demo_date <- reactive({readRDS("demo_date.rds")})
+  saved_demo_date <- reactive({readRDS("Saved_dfs/demo_date.rds")})
   observe({
     updateDateInput(session, "demo_date", value = saved_demo_date())
   })
@@ -80,14 +88,14 @@ server <- function(input, output, session) {
   #------------------------------------#
   
   latest_activity <- reactiveVal(
-    readRDS('activity_log.rds')
+    readRDS('Saved_dfs/activity_log.rds')
   )
   
   ## Initialise Summary of Results ##
   #---------------------------------#
   
   results_summary <- reactiveVal(
-    readRDS("results_summary.rds")
+    readRDS("Saved_dfs/results_summary.rds")
   )
   
 
@@ -134,7 +142,7 @@ server <- function(input, output, session) {
   
   # Save activity log for future loads
   observe({
-    saveRDS(latest_activity(), 'activity_log.rds')
+    saveRDS(latest_activity(), 'Saved_dfs/activity_log.rds')
   })
   
   
@@ -144,12 +152,13 @@ server <- function(input, output, session) {
   LSRUpdateR_page_server(
     id = "LSRUpdateR",
     parent_session = session,
-    activity = latest_activity
+    activity = latest_activity,
+    latest_data_df = home_obj$latest_data_df
   )
   
   # Save summary of results for future loads
   observe({
-    saveRDS(results_summary(), "results_summary.rds")
+    saveRDS(results_summary(), "Saved_dfs/results_summary.rds")
   })
   
 
