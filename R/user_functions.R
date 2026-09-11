@@ -67,3 +67,96 @@ cochrane_conclusion <- function(effect,
   }
   
 }
+
+#' Function that extracts thresholds from threshold dataframe
+#'
+#' @param df Dataframe from which to extract
+#' @param input What type of threshold
+#' @param comparator Which comparator its referring to
+#' @param outcome Which outcome its referring to
+#'
+#' @return Designated value
+
+get_threshold <- function(df, input, comparator, outcome) {
+  df %>%
+    filter(
+      Input == input,
+      Outcome == outcome,
+      Comparator == comparator
+    ) %>%
+    pull(Value) %>%
+    as.numeric()
+}
+
+#' Function that runs LSRUpdateR for a single outcome/comparator
+#'
+#' @param df_name Name of dataframe subsetting from
+#' @param comparator Which comparator its referring to
+#' @param outcome Which outcome its referring to
+#' @param last_search_date The search date of last update
+#' @param thresholds_df Dataframe for thresholds
+#' @param results_summary_df Dataframe containing summary of last update results
+#'
+#' @return LSRUpdateR object
+
+run_LSRUpdateR <- function(df_name, comparator, outcome, last_search_date, thresholds_df, results_summary_df) {
+  
+  # Define dataset
+  data_df <- data[[df_name]] %>%
+    filter(Comparator == comparator)
+  
+  # Run meta-analysis to obtain weights
+  MA_obj <- metafor::rma.mh(ai = Experimental_cases, ci = Control_cases, n1i = Experimental_N, n2i = Control_N, slab = Study, data = data_df, 
+                            measure = "RR", drop00 = c(TRUE, TRUE), add = c(0.5, 0.5), to = c("only0", "only0"))
+  data_df <- data_df %>% mutate(est = NA_real_, est.log = NA_real_, CI.lb = NA_real_, CI.ub = NA_real_, weight = NA_real_)
+  # Identify rows where both arms are not zero
+  idx <- !(data_df$Experimental_cases == 0 & data_df$Control_cases == 0)
+  # Populate only non-zero rows
+  data_df[idx, c("est", "est.log", "CI.lb", "CI.ub", "weight")] <-
+    list(
+      exp(MA_obj$yi), MA_obj$yi, exp(MA_obj$yi - 1.96*sqrt(MA_obj$vi)), exp(MA_obj$yi + 1.96*sqrt(MA_obj$vi)), weights(MA_obj)
+      )
+  
+  # Run LSRUpdateR command
+  UpdatePredictor(
+    data = data_df,
+    search_col = "Included_Date",
+    last_search_date = last_search_date,
+    overall_rob = "Overall_Bias",
+    event_cols = c("Experimental_cases", "Control_cases"),
+    CI_lb_col = "CI.lb",
+    CI_ub_col = "CI.ub",
+    estimates = "est.log",
+    events_trt_name = "Experimental_cases",
+    events_ctrl_name = "Control_cases",
+    n_trt_name = "Experimental_N",
+    n_ctrl_name = "Control_N",
+    rob_tool = 1,
+    ma_outcome = "RR",
+    model = "MH",
+    pe_threshold = get_threshold(thresholds_df, "pe_threshold", comparator, outcome),
+    RoB_1_threshold = get_threshold(thresholds_df, "RoB_one_level", comparator, outcome),
+    RoB_2_threshold = get_threshold(thresholds_df, "RoB_two_level", comparator, outcome),
+    CI_threshold_pos = get_threshold(thresholds_df, "region_upper_bin", comparator, outcome),
+    CI_threshold_neg = get_threshold(thresholds_df, "region_lower_bin", comparator, outcome),
+    variation_threshold = get_threshold(thresholds_df, "variation_estimates", comparator, outcome),
+    effect_est_pos = get_threshold(thresholds_df, "pos_clin", comparator, outcome),
+    effect_est_neg = get_threshold(thresholds_df, "neg_clin", comparator, outcome),
+    Jaccard_threshold = get_threshold(thresholds_df, "Jaccard", comparator, outcome),
+    events_1_threshold = get_threshold(thresholds_df, "events_one_level", comparator, outcome),
+    events_2_threshold = get_threshold(thresholds_df, "events_two_level", comparator, outcome),
+    pubbias_min_studies = get_threshold(thresholds_df, "min_studies", comparator, outcome),
+    Eggers_threshold = get_threshold(thresholds_df, "Eggers_pvalue", comparator, outcome),
+    industry = as.logical(thresholds_df$Value[thresholds_df$Input == "industry" & thresholds_df$Comparator == comparator & thresholds_df$Outcome == outcome]),
+    search = as.logical(thresholds_df$Value[thresholds_df$Input == "search" & thresholds_df$Comparator == comparator & thresholds_df$Outcome == outcome]),
+    indirectness = as.numeric(is.logical(thresholds_df$Value[thresholds_df$Input == "indirectness" & thresholds_df$Comparator == comparator & thresholds_df$Outcome == outcome])),
+    prev_RoB = results_summary_df$RoB[results_summary_df$Outcome == outcome & results_summary_df$Comparator == comparator],
+    prev_imprecision = results_summary_df$Imprecision[results_summary_df$Outcome == outcome & results_summary_df$Comparator == comparator],
+    prev_inconsistency = results_summary_df$Inconsistency[results_summary_df$Outcome == outcome & results_summary_df$Comparator == comparator],
+    prev_pubbias = results_summary_df$Pubbias[results_summary_df$Outcome == outcome & results_summary_df$Comparator == comparator],
+    prev_indirectness = results_summary_df$Indirectness[results_summary_df$Outcome == outcome & results_summary_df$Comparator == comparator],
+    prev_est = results_summary_df$RR[results_summary_df$Outcome == outcome & results_summary_df$Comparator == comparator],
+    draw_plot = TRUE
+  )
+  
+}

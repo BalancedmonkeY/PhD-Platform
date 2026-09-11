@@ -86,12 +86,19 @@ LSRUpdateR_home_thresholds_server <- function(id) {
                            "bin_or_cont", "events_one_level", "events_two_level", "region_lower_bin",
                            "region_upper_bin", "region_lower_cont", "region_upper_cont", "Eggers_pvalue",
                            "min_studies", "search", "industry", "indirectness",
-                           "pos_clin", "neg_clin", "null_effect")
+                           "pos_clin", "neg_clin", "pe_threshold")
 
       locked <- reactiveVal(readRDS("Saved_dfs/lock.rds")) 
       
       # Make sure UI features match current lock settings
       observe({
+        req(input$RoB_one_level) # ensures that the threshold inputs exist before enabling/disabling them
+
+        #Enable or Disable inputs depending on locked status
+        lapply(threshold_inputs, function(id) {
+          shinyjs::toggleState(id, condition = !locked())
+        })
+
         if (locked() == FALSE) {
         
           # Change icon
@@ -100,11 +107,6 @@ LSRUpdateR_home_thresholds_server <- function(id) {
             icon = icon("lock"),
             label = NULL
           )
-        
-          # Enable inputs
-          lapply(threshold_inputs, function(id) {
-            shinyjs::enable(id)
-          })
 
         } else if (locked() == TRUE) {
         
@@ -114,16 +116,11 @@ LSRUpdateR_home_thresholds_server <- function(id) {
             icon = icon("lock-open"),
             label = NULL
           )
-        
-          # Disable inputs
-          lapply(threshold_inputs, function(id) {
-            shinyjs::disable(id)
-          })
         }
       })
       
       # Swap value when lock/unlock button is pressed
-      observeEvent(input$lock_thresholds, {
+      observe({
         
         # Moving from locked -> unlocked
         if (locked() == TRUE) {
@@ -141,7 +138,8 @@ LSRUpdateR_home_thresholds_server <- function(id) {
         
         # Save last lock position
         saveRDS(locked(), "Saved_dfs/lock.rds")
-      })
+      }) |>
+        bindEvent(input$lock_thresholds)
       
       
       ## Modify inputs ##
@@ -161,12 +159,13 @@ LSRUpdateR_home_thresholds_server <- function(id) {
       threshold_help <- reactive({
         req(input$bin_or_cont)
         data.frame(
-        element = paste0("#", ns(c("RoB_one_level", "RoB_two_level", "variation_estimates", "Jaccard", "bin_or_cont", 
+        element = paste0("#", ns(c("RoB_one_level", "RoB_two_level", "pe_threshold", "variation_estimates", "Jaccard", "bin_or_cont", 
                                    if(input$bin_or_cont == "bin") {threshold_inputs_bin} else {threshold_inputs_cont},
-                                   "Eggers_pvalue", "min_studies", "search", "industry", "indirectness", "pos_clin", "neg_clin", "null_effect"))),
+                                   "Eggers_pvalue", "min_studies", "search", "industry", "indirectness", "pos_clin", "neg_clin"))),
         intro = c("Value X such that if the weighted risk of bias score is bigger than or equal to X, downgrade one level due to risk of bias",
                   "Value X such that if the weighted risk of bias socre is bigger than or equal to X, downgrade two levels due to risk of bias",
-                  "Based on the value that represents the desired clinical effect, choose the proportion, X, such that if X (or more) of the study effect estimates sit to one 'side' of the desired effect, there is no need to downgrade for imprecision.
+                  "Value X such that if two point estimated were either side of X they would be considered inconsistent",
+                  "Based on the value that represents differing point estimates, choose the proportion, X, such that if X (or more) of the study effect estimates sit to one 'side' of the desired effect, there is no need to downgrade for imprecision.
                   If less than X study effect estimates sit on the same side, then consider the overlap of confidence intervals using the pairwise Jaccard index.",
                   "The pairwise Jaccard index is a measure of overlap of the confidence intervals, and is only considered when the study effect estimates are deemed to not be in 'agreement'. 
                   Choose a proportion, X, such that if the average pairwise Jaccard index (i.e., measure of overlap) is less than X, then downgrade 1 level for imprecision.",
@@ -187,8 +186,7 @@ LSRUpdateR_home_thresholds_server <- function(id) {
                   "Indicate whether you think indirectness is present, by considering whether the population, intervention, comparator, and/or outcomes of the studies incorporates what is wanted for the research question.
                   Any indication of indirectness will lead to downgrading 1 level due to indirectness.",
                   "What outcome value indicates a positive (desired) clinical effect.",
-                  "What outcome value indicates a negative (undesired) clinical effect.",
-                  "What outcome value indicates no change.")
+                  "What outcome value indicates a negative (undesired) clinical effect.")
       )})
       
       observeEvent(
@@ -228,6 +226,9 @@ LSRUpdateR_home_thresholds_server <- function(id) {
                               min = 1, max = 3, step = 0.05),
                  br(),
                  tags$b("Inconsistency"),
+                 numericInput(ns("pe_threshold"),
+                              label = "Threshold for consistent point estimates",
+                              value = threshold_choices()$Value[threshold_choices()$Comparator == input$comparison_filter & threshold_choices()$Outcome == input$outcome_filter & threshold_choices()$Input == "pe_threshold"]),
                  numericInput(ns("variation_estimates"),
                               label = "Variation in estimates",
                               value = threshold_choices()$Value[threshold_choices()$Comparator == input$comparison_filter & threshold_choices()$Outcome == input$outcome_filter & threshold_choices()$Input == "variation_estimates"], 
@@ -301,9 +302,6 @@ LSRUpdateR_home_thresholds_server <- function(id) {
                  numericInput(ns("neg_clin"),
                               label = "Threshold for a negative (undesired) clinical effect",
                               value = threshold_choices()$Value[threshold_choices()$Comparator == input$comparison_filter & threshold_choices()$Outcome == input$outcome_filter & threshold_choices()$Input == "neg_clin"]),
-                 numericInput(ns("null_effect"),
-                              label = "Value that represents no effect",
-                              value = threshold_choices()$Value[threshold_choices()$Comparator == input$comparison_filter & threshold_choices()$Outcome == input$outcome_filter & threshold_choices()$Input == "null_effect"]),
                  br()
           )
         )
@@ -348,8 +346,8 @@ LSRUpdateR_home_thresholds_server <- function(id) {
           value = threshold_choices()$Value[threshold_choices()$Comparator == input$comparison_filter & threshold_choices()$Outcome == input$outcome_filter & threshold_choices()$Input == "pos_clin"])
         updateNumericInput(session, "neg_clin",
           value = threshold_choices()$Value[threshold_choices()$Comparator == input$comparison_filter & threshold_choices()$Outcome == input$outcome_filter & threshold_choices()$Input == "neg_clin"])
-        updateNumericInput(session, "null_effect",
-          value = threshold_choices()$Value[threshold_choices()$Comparator == input$comparison_filter & threshold_choices()$Outcome == input$outcome_filter & threshold_choices()$Input == "null_effect"])
+        updateNumericInput(session, "pe_threshold",
+          value = threshold_choices()$Value[threshold_choices()$Comparator == input$comparison_filter & threshold_choices()$Outcome == input$outcome_filter & threshold_choices()$Input == "pe_threshold"])
         
       }, suspended = TRUE)
       
@@ -464,10 +462,10 @@ LSRUpdateR_home_thresholds_server <- function(id) {
         bindEvent(input$neg_clin)
       observe({
         update_thresh <- threshold_choices() |> 
-          mutate(Value = base::replace(Value, Comparator == input$comparison_filter & Outcome == input$outcome_filter & Input == "null_effect", input$null_effect))
+          mutate(Value = base::replace(Value, Comparator == input$comparison_filter & Outcome == input$outcome_filter & Input == "pe_threshold", input$pe_threshold))
         threshold_choices(update_thresh)
       }) |>
-        bindEvent(input$null_effect)
+        bindEvent(input$pe_threshold)
       
       # Save updated thresholds
       observe({
@@ -480,7 +478,7 @@ LSRUpdateR_home_thresholds_server <- function(id) {
       ## Return thresholds ##
       #---------------------#
       
-      return(threshold_choices())
+      return(threshold_choices)
 
     }
   )

@@ -153,7 +153,10 @@ server <- function(input, output, session) {
     id = "LSRUpdateR",
     parent_session = session,
     activity = latest_activity,
-    latest_data_df = home_obj$latest_data_df
+    latest_data_df = home_obj$latest_data_df,
+    data_object = data_object,
+    results_summary = results_summary,
+    demo_date = current_date
   )
   
   # Save summary of results for future loads

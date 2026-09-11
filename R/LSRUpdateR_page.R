@@ -31,28 +31,36 @@ LSRUpdateR_page_ui <- function(id) {
 #' @param parent_session Session from home page (needed for navbar_select)
 #' @param activity Reactive activity log
 #' @param latest_data_df Reactive dataframe of summarised latest data
+#' @param data_object Reactive Data for LSRUpdateR (includes datasets, last search date, and unique studies)
+#' @param results_summary Reactive dataframe of summary of results
+#' @param demo_date The current date for the demo
 #'
 #' @return 
-LSRUpdateR_page_server <- function(id, parent_session, activity, latest_data_df) {
+LSRUpdateR_page_server <- function(id, parent_session, activity, latest_data_df, data_object, results_summary, demo_date) {
   moduleServer(
     id,
     function(input, output, session) {
       
       ## Home page ##
 
-      LSRUpdateR_home_server(
+      LSRUpdateR_home_obj <- LSRUpdateR_home_server(
         id = "home_page",
         LSRUpdateR_session = session,
         parent_session = parent_session,
         activity_df = activity,
-        latest_data_df = latest_data_df
+        latest_data_df = latest_data_df,
+        data_object = data_object,
+        results_summary = results_summary,
+        demo_date = demo_date
       )
 
       ## Results page ##
 
       LSRUpdateR_results_server(
         id = "results_page",
-        LSRUpdateR_session = session
+        LSRUpdateR_session = session,
+        LSRUpdateR_results = LSRUpdateR_home_obj$LSRUpdateR_results,
+        activity_record = LSRUpdateR_home_obj$LSRUpdateR_activity_record
       )
       
       ## Manual update page ##

@@ -64,16 +64,93 @@ LSRUpdateR_home_ui <- function(id) {
 #' @param parent_session Session from home page (needed for navbar_select)
 #' @param activity_df Reactive dataframe of the activity log
 #' @param latest_data_df Reactive dataframe of summarised latest data
+#' @param data_object Reactive Data object from data page (includes datasets, last search date, and unique studies)
+#' @param results_summary Reactive dataframe of summary of results
+#' @param demo_date The current date for the demo
 #'
 #' @return 
-LSRUpdateR_home_server <- function(id, LSRUpdateR_session, parent_session, activity_df, latest_data_df) {
+LSRUpdateR_home_server <- function(id, LSRUpdateR_session, parent_session, activity_df, latest_data_df, data_object, results_summary, demo_date) {
   moduleServer(
     id,
     function(input, output, session) {
       
+      ### Initialise empty objects ###
+      #------------------------------#
+      
+      LSRUpdateR_results <- reactiveVal(NULL)
+      LSRUpdateR_activity_record <- reactiveVal(NULL)
+      
+      ### Threshold server ###
+      #----------------------#
+      
+      thresholds <- LSRUpdateR_home_thresholds_server(
+        id = "thresholds"
+      )
+      
+      
       ### Run LSRUpdateR ###
       #--------------------#
       
+      observe({
+        # Start spinner
+        shinycssloaders::showPageSpinner(type = 7, size = 1.5, caption = "Running LSRUpdateR")
+        
+        # Import LSRUpdateR
+        source("C:/Users/crn4/OneDrive - University of Leicester/PhD/WP2/3. Create tool/UpdatePredictor.R")
+      
+        # Unpack data objects
+        data <- data_object$data()
+        last_search_date <- max(latest_data_df()$Search_date[grepl("update", latest_data_df()$Status)])
+        
+        # Remove any expired studies
+        if(nrow(filter(data$cess_df, Excluded_Date < last_search_date)) != 0) {
+          data$cess_df <- data$cess_df %>%
+            filter(Excluded_Date >= last_search_date | is.na(Excluded_Date))
+        }
+        if(nrow(filter(data$AE_df, Excluded_Date < last_search_date)) != 0) {
+          data$AE_df <- data$AE_df %>%
+            filter(Excluded_Date >= last_search_date | is.na(Excluded_Date))
+        }
+        if(nrow(filter(data$SAE_df, Excluded_Date < last_search_date)) != 0) {
+          data$SAE_df <- data$SAE_df %>%
+            filter(Excluded_Date >= last_search_date | is.na(Excluded_Date))
+        }
+        
+        # Create combination grid (i.e., all 9 scenarios)
+        combinations <- expand.grid(
+          dataset = c("cess_df", "AE_df", "SAE_df"),
+          comparator = c("NRT", "Non-nicotine EC", "Behavioural or none")
+        )
+        combinations$outcome <- rep(c("Cessation", "Adverse Events", "Serious Adverse Events"), 3)
+        combinations <- combinations %>%
+          mutate(
+            dataset_short = sub("_df$", "", dataset),
+            comparator_short = case_when(
+              comparator == "NRT" ~ "NRT",
+              comparator == "Non-nicotine EC" ~ "Non-nic",
+              comparator == "Behavioural or none" ~ "Behavioural"
+            ),
+          result_name = paste(comparator_short, dataset_short, sep = "_")
+          )
+        
+        # Run LSRUpdateR for each scenario
+        LSRUpdateR_results <- purrr::pmap(
+          combinations,
+          ~ run_LSRUpdateR(df_name = ..1, comparator = ..2, outcome = ..3,
+                           last_search_date, thresholds(), results_summary())
+        )
+        
+        # Assign names to named list
+        names(LSRUpdateR_results) <- combinations$result_name
+        
+        LSRUpdateR_results(LSRUpdateR_results)
+        LSRUpdateR_activity_record(paste0("LSRUpdateR was run on ", format(demo_date(), "%d %B %Y")))
+        
+        # End spinner
+        shinycssloaders::hidePageSpinner()
+        
+      }) |>
+        bindEvent(input$run_LSRUpdateR)
       
       
       # Move user to results page
@@ -128,13 +205,6 @@ LSRUpdateR_home_server <- function(id, LSRUpdateR_session, parent_session, activ
       })
       
       
-      ### Threshold server ###
-      #----------------------#
-      
-      thresholds <- LSRUpdateR_home_thresholds_server(
-        id = "thresholds"
-      )
-      
       
       ### Latest Data Summary ###
       #-------------------------#
@@ -179,6 +249,13 @@ LSRUpdateR_home_server <- function(id, LSRUpdateR_session, parent_session, activ
         )
         
       })
+      
+      
+      ## Return objects needed for other pages
+      return(list(
+        LSRUpdateR_results = LSRUpdateR_results,
+        LSRUpdateR_activity_record = LSRUpdateR_activity_record
+      ))
       
     }
   )

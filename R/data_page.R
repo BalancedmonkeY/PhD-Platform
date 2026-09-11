@@ -31,7 +31,6 @@ data_page_ui <- function(id) {
 #' - loaded data frame(s) (each outcome)
 #' - last search date
 #' - unique studies
-#' - latest activity log
 data_page_server <- function(id, demo_date, activity) {
   moduleServer(
     id,
