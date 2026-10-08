@@ -41,6 +41,11 @@ LSRUpdateR_home_thresholds_ui <- function(id) {
                 icon = icon("circle-info")
               ),
               bslib::toolbar_input_button(
+                id = ns("ecig_demo"),
+                label = NULL,
+                icon = icon("smoking")
+              ),
+              bslib::toolbar_input_button(
                 id = ns("save"),
                 label = NULL,
                 icon = icon("floppy-disk")
@@ -210,6 +215,12 @@ LSRUpdateR_home_thresholds_server <- function(id) {
       #------------------------------------#
       
       threshold_choices <- reactiveVal(readRDS("Saved_dfs/thresholds.rds"))
+      
+      # Load e-cig threshold values if button pressed
+      observe({
+        threshold_choices(readRDS("Saved_dfs/thresholds_ecig.rds"))
+      }) |>
+        bindEvent(input$ecig_demo)
       
       # UI for threshold inputs
       output$threshold_inputs_ui <- renderUI({

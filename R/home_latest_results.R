@@ -68,9 +68,9 @@ home_latest_results_server <- function(id, results_summary, latest_data_df) {
         # Each comparator text
         NRT_text <- paste(results_summary %>% filter(Comparator == "NRT") %>% pull(conclusion), 
                           collapse = "<br>")
-        Non_nicotine_text <- paste(results_summary %>% filter(Comparator == "non-nicotine EC") %>% pull(conclusion), 
+        Non_nicotine_text <- paste(results_summary %>% filter(Comparator == "Non-nicotine EC") %>% pull(conclusion), 
                           collapse = "<br>")
-        Behavioural_text <- paste(results_summary %>% filter(Comparator == "behavioural or none") %>% pull(conclusion), 
+        Behavioural_text <- paste(results_summary %>% filter(Comparator == "Behavioural or none") %>% pull(conclusion), 
                           collapse = "<br>")
         
 

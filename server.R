@@ -6,7 +6,7 @@ server <- function(input, output, session) {
   observe({
     
     # Demo date #
-    base_demo <- as.Date("2023-12-31")
+    base_demo <- as.Date("2023-09-30")
     saveRDS(base_demo, "Saved_dfs/demo_date.rds")
     
     # Saved search date #
@@ -40,6 +40,10 @@ server <- function(input, output, session) {
     # Saved thresholds
     thresholds_base <- readRDS("Saved_dfs/thresholds_base.rds")
     saveRDS(thresholds_base, "Saved_dfs/thresholds.rds")
+    
+    # Saved quantitative information on latest update
+    quant_results_base <- readRDS("Saved_dfs/quant_results_base.rds")
+    saveRDS(quant_results_base, "Saved_dfs/quant_results.rds")
     
     # Notification of reloading session
     showModal(

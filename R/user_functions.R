@@ -160,3 +160,97 @@ run_LSRUpdateR <- function(df_name, comparator, outcome, last_search_date, thres
   )
   
 }
+
+#' Function that calculates all the quantitative information that is used for GRADE
+#'
+#' @param data_obj Main data object with multiple objects
+#' @param df_name Name of dataframe subsetting from
+#' @param comparator Which comparator its referring to
+#' @param outcome Which outcome its referring to
+#' @param thresholds_df Dataframe for thresholds
+#'
+#' @return list of quantitative info
+
+run_quant_info <- function(data_obj, df_name, comparator, outcome, thresholds_df, industry, search, indirectness) {
+  
+  # Define dataset
+  data_df <- data_obj[[df_name]] %>%
+    filter(Comparator == comparator)
+  
+  # Run meta-analysis to obtain weights
+  MA_obj <- metafor::rma.mh(ai = Experimental_cases, ci = Control_cases, n1i = Experimental_N, n2i = Control_N, slab = Study, data = data_df, 
+                            measure = "RR", drop00 = c(TRUE, TRUE), add = c(0.5, 0.5), to = c("only0", "only0"))
+  data_df <- data_df %>% mutate(est = NA_real_, est.log = NA_real_, CI.lb = NA_real_, CI.ub = NA_real_, weight = NA_real_)
+  # Identify rows where both arms are not zero
+  idx <- !(data_df$Experimental_cases == 0 & data_df$Control_cases == 0)
+  # Populate only non-zero rows
+  data_df[idx, c("est", "est.log", "CI.lb", "CI.ub", "weight")] <-
+    list(
+      exp(MA_obj$yi), MA_obj$yi, exp(MA_obj$yi - 1.96*sqrt(MA_obj$vi)), exp(MA_obj$yi + 1.96*sqrt(MA_obj$vi)), weights(MA_obj)
+    )
+  
+  # Risk of bias #
+  # RoB_avg
+  RoB_avg <- weighted_RoB(
+    data = data_df[idx,], 
+    rob_tool = 2,
+    overall_rob = "Overall_Bias",
+    weights = "weight"
+  )
+  
+  # Imprecision
+  # Number of events
+  events <- sum_events(
+    data = data_df,
+    event_cols = c("Experimental_cases", "Control_cases")
+  )
+  # CI
+  CI <- paste0("(", round(exp(MA_obj$ci.lb),2), ", ", round(exp(MA_obj$ci.ub),2), ")")
+  # Number of interpretations
+  interpretation_df <- CI_interpretation(
+    CI_lb = MA_obj$ci.lb,
+    CI_ub = MA_obj$ci.ub,
+    threshold_pos = log(get_threshold(thresholds_df, "region_upper_bin", comparator, outcome)),
+    threshold_neg = log(get_threshold(thresholds_df, "region_lower_bin", comparator, outcome)),
+    ma_outcome = "RR"
+  )
+  interp_no <- sum(interpretation_df)
+  
+  # Inconsistency
+  # Variation in estimates
+  var_est <- estimate_variation(
+    estimates = data_df[["est"]][!is.na(data_df[["est"]])],
+    threshold = get_threshold(thresholds_df, "pe_threshold", comparator, outcome)
+  )
+  # Jaccard
+  Jaccard <- pairwise_Jaccard(
+    CI_lb_col = data_df[["CI.lb"]][!is.na(data_df[["CI.lb"]])],
+    CI_ub_col = data_df[["CI.ub"]][!is.na(data_df[["CI.ub"]])]
+  )
+  
+  # Publication bias
+  # Number of studies
+  studies_no <- nrow(data_df)
+  # Eggers p-value
+  if (studies_no >= get_threshold(thresholds_df, "min_studies", comparator, outcome)) {
+    test_info <- metafor::regtest(MA_obj, model = "lm", predictor = "sei")
+    stat <- test_info$pval
+  } else {
+    stat <- NA
+  }
+  
+  return(list(
+    RoB_avg = RoB_avg,
+    events = events,
+    CI = CI,
+    interp_no = interp_no,
+    var_est = var_est,
+    Jaccard = Jaccard,
+    studies_no = studies_no,
+    Eggers = stat,
+    industry = industry,
+    search = search,
+    indirectness = indirectness
+  ))
+  
+}

@@ -64,11 +64,12 @@ LSRUpdateR_home_ui <- function(id) {
 #' @param parent_session Session from home page (needed for navbar_select)
 #' @param activity_df Reactive dataframe of the activity log
 #' @param latest_data_df Reactive dataframe of summarised latest data
-#' @param data_object Reactive Data object from data page (includes datasets, last search date, and unique studies)
+#' @param data_object Data object from data page containing reactive objects (includes datasets, last search date, and unique studies)
 #' @param results_summary Reactive dataframe of summary of results
 #' @param demo_date The current date for the demo
 #'
 #' @return 
+#' thresholds - Reactive dataframe of threshold currently used
 LSRUpdateR_home_server <- function(id, LSRUpdateR_session, parent_session, activity_df, latest_data_df, data_object, results_summary, demo_date) {
   moduleServer(
     id,
@@ -92,71 +93,89 @@ LSRUpdateR_home_server <- function(id, LSRUpdateR_session, parent_session, activ
       #--------------------#
       
       observe({
-        # Start spinner
-        shinycssloaders::showPageSpinner(type = 7, size = 1.5, caption = "Running LSRUpdateR")
         
-        # Import LSRUpdateR
-        source("C:/Users/crn4/OneDrive - University of Leicester/PhD/WP2/3. Create tool/UpdatePredictor.R")
+        # Check whether there are any new studies - if not, notify the user and return to page
+        if (latest_data_df()$No_studies[1] == latest_data_df()$No_studies[2]) {
+          
+          showModal(
+            modalDialog(
+              title = "No New Studies",
+              footer = modalButton("Understand"),
+              size = "l",
+              easyClose = TRUE,
+              div(
+                h5("No new studies have been identified since the last update. Therefore there is no need to run LSRUpdateR.")
+              )
+            )
+          )
+          
+        } else {
+          
+          # Start spinner
+          shinycssloaders::showPageSpinner(type = 7, size = 1.5, caption = "Running LSRUpdateR")
+        
+          # Import LSRUpdateR
+          source("C:/Users/crn4/OneDrive - University of Leicester/PhD/WP2/3. Create tool/UpdatePredictor.R")
       
-        # Unpack data objects
-        data <- data_object$data()
-        last_search_date <- max(latest_data_df()$Search_date[grepl("update", latest_data_df()$Status)])
+          # Unpack data objects
+          data <- data_object$data()
+          last_search_date <- max(latest_data_df()$Search_date)
         
-        # Remove any expired studies
-        if(nrow(filter(data$cess_df, Excluded_Date < last_search_date)) != 0) {
-          data$cess_df <- data$cess_df %>%
-            filter(Excluded_Date >= last_search_date | is.na(Excluded_Date))
-        }
-        if(nrow(filter(data$AE_df, Excluded_Date < last_search_date)) != 0) {
-          data$AE_df <- data$AE_df %>%
-            filter(Excluded_Date >= last_search_date | is.na(Excluded_Date))
-        }
-        if(nrow(filter(data$SAE_df, Excluded_Date < last_search_date)) != 0) {
-          data$SAE_df <- data$SAE_df %>%
-            filter(Excluded_Date >= last_search_date | is.na(Excluded_Date))
-        }
+          # Remove any expired studies
+          if(nrow(filter(data$cess_df, Excluded_Date < last_search_date)) != 0) {
+            data$cess_df <- data$cess_df %>%
+              filter(Excluded_Date >= last_search_date | is.na(Excluded_Date))
+          }
+          if(nrow(filter(data$AE_df, Excluded_Date < last_search_date)) != 0) {
+            data$AE_df <- data$AE_df %>%
+              filter(Excluded_Date >= last_search_date | is.na(Excluded_Date))
+          }
+          if(nrow(filter(data$SAE_df, Excluded_Date < last_search_date)) != 0) {
+            data$SAE_df <- data$SAE_df %>%
+              filter(Excluded_Date >= last_search_date | is.na(Excluded_Date))
+          }
         
-        # Create combination grid (i.e., all 9 scenarios)
-        combinations <- expand.grid(
-          dataset = c("cess_df", "AE_df", "SAE_df"),
-          comparator = c("NRT", "Non-nicotine EC", "Behavioural or none")
-        )
-        combinations$outcome <- rep(c("Cessation", "Adverse Events", "Serious Adverse Events"), 3)
-        combinations <- combinations %>%
-          mutate(
-            dataset_short = sub("_df$", "", dataset),
-            comparator_short = case_when(
-              comparator == "NRT" ~ "NRT",
-              comparator == "Non-nicotine EC" ~ "Non-nic",
-              comparator == "Behavioural or none" ~ "Behavioural"
-            ),
-          result_name = paste(comparator_short, dataset_short, sep = "_")
+          # Create combination grid (i.e., all 9 scenarios)
+          combinations <- expand.grid(
+            dataset = c("cess_df", "AE_df", "SAE_df"),
+            comparator = c("NRT", "Non-nicotine EC", "Behavioural or none")
+          )
+          combinations$outcome <- rep(c("Cessation", "Adverse Events", "Serious Adverse Events"), 3)
+          combinations <- combinations %>%
+            mutate(
+              dataset_short = sub("_df$", "", dataset),
+              comparator_short = case_when(
+                comparator == "NRT" ~ "NRT",
+                comparator == "Non-nicotine EC" ~ "Non-nic",
+                comparator == "Behavioural or none" ~ "Behavioural"
+              ),
+            result_name = paste(comparator_short, dataset_short, sep = "_")
+            )
+        
+          # Run LSRUpdateR for each scenario
+          LSRUpdateR_results <- purrr::pmap(
+            combinations,
+            ~ run_LSRUpdateR(df_name = ..1, comparator = ..2, outcome = ..3,
+                             last_search_date, thresholds(), results_summary())
           )
         
-        # Run LSRUpdateR for each scenario
-        LSRUpdateR_results <- purrr::pmap(
-          combinations,
-          ~ run_LSRUpdateR(df_name = ..1, comparator = ..2, outcome = ..3,
-                           last_search_date, thresholds(), results_summary())
-        )
+          # Assign names to named list
+          names(LSRUpdateR_results) <- combinations$result_name
         
-        # Assign names to named list
-        names(LSRUpdateR_results) <- combinations$result_name
+          LSRUpdateR_results(LSRUpdateR_results)
+          LSRUpdateR_activity_record(paste0("LSRUpdateR was run on ", format(demo_date(), "%d %B %Y")))
         
-        LSRUpdateR_results(LSRUpdateR_results)
-        LSRUpdateR_activity_record(paste0("LSRUpdateR was run on ", format(demo_date(), "%d %B %Y")))
-        
-        # End spinner
-        shinycssloaders::hidePageSpinner()
+          # End spinner
+          shinycssloaders::hidePageSpinner()
+          
+          # Move to results page
+          bslib::nav_select("LSRUpdateR_navbar", selected = "results", session = LSRUpdateR_session)
+          
+        }
         
       }) |>
         bindEvent(input$run_LSRUpdateR)
       
-      
-      # Move user to results page
-      observeEvent(input$run_LSRUpdateR, {
-        bslib::nav_select("LSRUpdateR_navbar", selected = "results", session = LSRUpdateR_session)
-      })
       
       
       ### Conduct manual update ###
@@ -254,7 +273,8 @@ LSRUpdateR_home_server <- function(id, LSRUpdateR_session, parent_session, activ
       ## Return objects needed for other pages
       return(list(
         LSRUpdateR_results = LSRUpdateR_results,
-        LSRUpdateR_activity_record = LSRUpdateR_activity_record
+        LSRUpdateR_activity_record = LSRUpdateR_activity_record,
+        thresholds = thresholds
       ))
       
     }

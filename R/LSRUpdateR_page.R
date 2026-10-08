@@ -41,6 +41,9 @@ LSRUpdateR_page_server <- function(id, parent_session, activity, latest_data_df,
     id,
     function(input, output, session) {
       
+      ## Indicator of current page ##
+      current_page <- reactive({input$LSRUpdateR_navbar})
+      
       ## Home page ##
 
       LSRUpdateR_home_obj <- LSRUpdateR_home_server(
@@ -59,8 +62,12 @@ LSRUpdateR_page_server <- function(id, parent_session, activity, latest_data_df,
       LSRUpdateR_results_server(
         id = "results_page",
         LSRUpdateR_session = session,
+        active_page = current_page,
         LSRUpdateR_results = LSRUpdateR_home_obj$LSRUpdateR_results,
-        activity_record = LSRUpdateR_home_obj$LSRUpdateR_activity_record
+        activity_record = LSRUpdateR_home_obj$LSRUpdateR_activity_record,
+        thresholds = LSRUpdateR_home_obj$thresholds,
+        latest_data_df = latest_data_df,
+        data_object = data_object
       )
       
       ## Manual update page ##
