@@ -84,9 +84,10 @@ LSRUpdateR_results_ui <- function(id) {
 #' @param thresholds Reactive dataframe of currently chosen thresholds
 #' @param latest_data_df Reactive dataframe of summarised latest data
 #' @param data_object Data object from data page containing reactive objects (includes datasets, last search date, and unique studies)
+#' @param results_summary Reactive dataframe that summarises latest results
 #'
 #' @return 
-LSRUpdateR_results_server <- function(id, LSRUpdateR_session, active_page, LSRUpdateR_results, activity_record, thresholds, latest_data_df, data_object) {
+LSRUpdateR_results_server <- function(id, LSRUpdateR_session, active_page, LSRUpdateR_results, activity_record, thresholds, latest_data_df, data_object, results_summary) {
   moduleServer(
     id,
     function(input, output, session) {
@@ -102,6 +103,56 @@ LSRUpdateR_results_server <- function(id, LSRUpdateR_session, active_page, LSRUp
         )
       })
       
+      ### Create filter keys and indicators of suggested updates ###
+      #------------------------------------------------------------#
+      
+      # Quantitative information regarding current update
+      base_quant_info <- reactiveVal(readRDS("Saved_dfs/quant_results.rds"))
+      
+      # Initialising reactiveVals
+      filter_key <- reactiveVal()
+      suggested_scenarios <- reactiveVal()
+      
+      observe({
+        req(active_page() == "results")
+        
+        # Create filter key
+        outcome_filter_lookup <- c(Cessation = "cess", `Adverse Events` = "AE", `Serious Adverse Events` = "SAE")
+        comparator_filter_lookup <- c(NRT = "NRT", `Non-nicotine EC` = "Non-nic", `Behavioural or none` = "Behavioural")
+        
+        filter_key(paste0(comparator_filter_lookup[input$comparison_filter], "_", outcome_filter_lookup[input$outcome_filter]))
+        
+        # Extract which scenarios suggested an update
+        suggested_scenarios(names(LSRUpdateR_results())[predicts_update()])
+        
+        # # Create combination grid (i.e., all 9 scenarios)
+        # combinations <- expand.grid(
+        #   dataset = c("cess_df", "AE_df", "SAE_df"),
+        #   comparator = c("NRT", "Non-nicotine EC", "Behavioural or none")
+        # )
+        # combinations$outcome <- rep(c("Cessation", "Adverse Events", "Serious Adverse Events"), 3)
+        # combinations <- combinations %>%
+        #   mutate(
+        #     dataset_short = sub("_df$", "", dataset),
+        #     comparator_short = case_when(
+        #       comparator == "NRT" ~ "NRT",
+        #       comparator == "Non-nicotine EC" ~ "Non-nic",
+        #       comparator == "Behavioural or none" ~ "Behavioural"
+        #     ),
+        #     result_name = paste(comparator_short, dataset_short, sep = "_")
+        #   )
+        # 
+        # # Run function that calculates quantitative results for each scenario
+        # quant_results <- purrr::pmap(
+        #   combinations,
+        #   ~ run_quant_info(df_name = ..1, comparator = ..2, outcome = ..3,
+        #                    data_obj = data_og, thresholds_df = thresholds())
+        # )
+        
+      }) |>
+        bindEvent(c(active_page(), input$outcome_filter, input$comparison_filter))
+      
+      
       ### Fill overall suggestion text ###
       #----------------------------------#
       
@@ -109,16 +160,14 @@ LSRUpdateR_results_server <- function(id, LSRUpdateR_session, active_page, LSRUp
       comparator_lookup <- c(NRT = "NRT", `Non-nic` = "non-nicotine ECs", Behavioural = "behavioural support (or none)")
       
       output$overall_text <- renderUI({
-        # Extract which scenarios suggested an update
-        scenarios <- names(LSRUpdateR_results())[predicts_update()]
         
         # If no updates
-        if (length(scenarios) == 0) {
+        if (length(suggested_scenarios()) == 0) {
           HTML("LSRUpdateR predicts that the review should <b>not</b> be updated.<br>
                The addition of new studies did not change the GRADE rating or interpretation of point estimate.")
         } else {
         # If updates
-          sentences <- sapply(scenarios, function(x) {
+          sentences <- sapply(suggested_scenarios(), function(x) {
             scenario_parts <- strsplit(x, "_")[[1]]
             comparator <- scenario_parts[1]
             outcome <- scenario_parts[2]
@@ -132,44 +181,6 @@ LSRUpdateR_results_server <- function(id, LSRUpdateR_session, active_page, LSRUp
         }
       })
       
-      
-      ### Obtain relevant information for most recent update ###
-      #--------------------------------------------------------#
-      
-      base_quant_info <- reactiveVal(readRDS("Saved_dfs/quant_results.rds"))
-      
-
-      # observe({
-      #   req(active_page() == "results")
-      #   
-      #   # Create combination grid (i.e., all 9 scenarios)
-      #   combinations <- expand.grid(
-      #     dataset = c("cess_df", "AE_df", "SAE_df"),
-      #     comparator = c("NRT", "Non-nicotine EC", "Behavioural or none")
-      #   )
-      #   combinations$outcome <- rep(c("Cessation", "Adverse Events", "Serious Adverse Events"), 3)
-      #   combinations <- combinations %>%
-      #     mutate(
-      #       dataset_short = sub("_df$", "", dataset),
-      #       comparator_short = case_when(
-      #         comparator == "NRT" ~ "NRT",
-      #         comparator == "Non-nicotine EC" ~ "Non-nic",
-      #         comparator == "Behavioural or none" ~ "Behavioural"
-      #       ),
-      #       result_name = paste(comparator_short, dataset_short, sep = "_")
-      #     )
-      # 
-      #   # Run function that calculates quantitative results for each scenario
-      #   quant_results <- purrr::pmap(
-      #     combinations,
-      #     ~ run_quant_info(df_name = ..1, comparator = ..2, outcome = ..3,
-      #                      data_obj = data_og, thresholds_df = thresholds())
-      #   )
-      # 
-      # 
-      # }) |>
-      #   bindEvent(active_page())
-      
 
       
       ### Auto present tabs where there are changes ###
@@ -181,22 +192,21 @@ LSRUpdateR_results_server <- function(id, LSRUpdateR_session, active_page, LSRUp
       ### Fill GRADE details ###
       #------------------------#
       
-      # Filter to currently viewed dataset
-      outcome_filter_lookup <- c(Cessation = "cess", `Adverse Events` = "AE", `Serious Adverse Events` = "SAE")
-      comparator_filter_lookup <- c(NRT = "NRT", `Non-nicotine EC` = "Non-nic", `Behavioural or none` = "Behavioural")
-      
+     # Filter datasets #
       viewed_new_df <- reactive({
-        filter_key <- paste0(comparator_filter_lookup[input$comparison_filter], "_", outcome_filter_lookup[input$outcome_filter])
-        LSRUpdateR_results()[[filter_key]] 
+        LSRUpdateR_results()[[filter_key()]] 
       })
       
       viewed_old_df <- reactive({
-        filter_key <- paste0(comparator_filter_lookup[input$comparison_filter], "_", outcome_filter_lookup[input$outcome_filter])
-        base_quant_info()[[filter_key]]
+        base_quant_info()[[filter_key()]]
       })
       
       viewed_thresholds <- reactive({
         thresholds() %>% filter(Comparator == input$comparison_filter & Outcome == input$outcome_filter)
+      })
+      
+      viewed_summaries <- reactive({
+        results_summary() %>% filter(Comparator == input$comparison_filter & Outcome == input$outcome_filter)
       })
       
       # Risk of bias #
@@ -388,6 +398,78 @@ LSRUpdateR_results_server <- function(id, LSRUpdateR_session, active_page, LSRUp
             <td colspan = '2' style='font-size: 80%;'><i>Any concerns regarding indirectness lead to downgrading of 1 level for indirectness.</i></td>
           </tr>
         </table>"))
+        
+      })
+      
+      # Overall text relating to GRADE #
+      
+      output$detail_text_GRADE <- renderUI({
+        
+        total_levels <- viewed_summaries() %>% select(c("Imprecision", "Inconsistency", "Indirectness", "Pubbias", "RoB")) %>% sum()
+        reasons <- c(
+          if (viewed_summaries()$Imprecision  != 0) "imprecision",
+          if (viewed_summaries()$Inconsistency != 0) "inconsistency",
+          if (viewed_summaries()$Indirectness  != 0) "indirectness",
+          if (viewed_summaries()$Pubbias       != 0) "publication bias",
+          if (viewed_summaries()$RoB           != 0) "risk of bias"
+        )
+        
+        if (total_levels != 0) {
+          # If there is some downgrading
+          reason_text <- if (length(reasons) == 1) {
+            reasons
+          } else if (length(reasons) == 2) {
+            paste(reasons, collapse = " and ")
+          } else {
+            paste0(
+              paste0(reasons[-length(reasons)], collapse = ", "),
+              ", and ",
+              reasons[length(reasons)]
+            )
+          }
+          
+          downgrading_sentence <- paste0("downgrading ", total_levels, " level(s) due to ", reason_text, ".")
+          
+        } else {
+          # If there is no downgrading
+          downgrading_sentence <- "no downgrading across all domains."
+        }
+        
+        current_state_paragraph <- paste0("Under the latest public update which included studies identified in searches up to <i>", 
+                              format(latest_data_df() %>% filter(stringr::str_detect(Status, "update")) %>% pull(Search_date) %>% max(), "%d %B %Y"),
+                              "</i>, the certainty of evidence was graded as <b>",
+                              viewed_summaries()$GRADE,
+                              "</b> - ", downgrading_sentence
+        )
+        
+        
+        if (filter_key() %in% suggested_scenarios()) {
+          addition_change <- "Some other details that needs calculating when it does suggest any update..."
+        } else {
+          if (viewed_new_df()$GRADE_results$studies_no - viewed_old_df()$studies_no != 0) {
+            # If there were new studies
+            addition_change <- paste0("Addition of the new study(ies) did not lead to a change in the certainty of evidence.")
+          } else {
+            # If there were no new studies
+            addition_change <- ""
+          }
+          
+        }
+
+        additional_data_paragraph <- paste0("By including search results from <i>",
+                                            format(latest_data_df() %>% pull(Search_date) %>% max(), "%d %B %Y"),
+                                            "</i>, this gave <i>",
+                                            viewed_new_df()$GRADE_results$studies_no - viewed_old_df()$studies_no,
+                                            " new study(ies)</i> for the ",
+                                            input$outcome_filter, " outcome in the ", input$comparison_filter, " comparison. ",
+                                            addition_change
+                                            )
+        
+        
+        HTML(paste0(
+          current_state_paragraph, "<br><br>",
+          additional_data_paragraph)
+        )
         
       })
       

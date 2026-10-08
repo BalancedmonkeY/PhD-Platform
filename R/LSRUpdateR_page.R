@@ -67,7 +67,8 @@ LSRUpdateR_page_server <- function(id, parent_session, activity, latest_data_df,
         activity_record = LSRUpdateR_home_obj$LSRUpdateR_activity_record,
         thresholds = LSRUpdateR_home_obj$thresholds,
         latest_data_df = latest_data_df,
-        data_object = data_object
+        data_object = data_object,
+        results_summary = results_summary
       )
       
       ## Manual update page ##
