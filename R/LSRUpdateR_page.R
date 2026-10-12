@@ -53,22 +53,22 @@ LSRUpdateR_page_server <- function(id, parent_session, activity, latest_data_df,
         activity_df = activity,
         latest_data_df = latest_data_df,
         data_object = data_object,
-        results_summary = results_summary,
-        demo_date = demo_date
+        results_summary = results_summary
       )
 
       ## Results page ##
 
-      LSRUpdateR_results_server(
+      LSRUpdateR_results_obj <- LSRUpdateR_results_server(
         id = "results_page",
         LSRUpdateR_session = session,
         active_page = current_page,
         LSRUpdateR_results = LSRUpdateR_home_obj$LSRUpdateR_results,
-        activity_record = LSRUpdateR_home_obj$LSRUpdateR_activity_record,
+        activity = activity,
         thresholds = LSRUpdateR_home_obj$thresholds,
         latest_data_df = latest_data_df,
-        data_object = data_object,
-        results_summary = results_summary
+        cleaned_data = LSRUpdateR_home_obj$data,
+        results_summary = results_summary,
+        demo_date = demo_date
       )
       
       ## Manual update page ##

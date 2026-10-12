@@ -59,7 +59,8 @@ LSRUpdateR_results_ui <- function(id) {
                            uiOutput(ns("detail_text_estimate"))
                           ),
                     column(8,
-                           "I'll display Update Funnel Plot")
+                           h5("Update Funnel Plot"),
+                           plotOutput(ns("funnel_plot")))
                     )
                   ),
         id = ns("GRADE_or_Estimate")
@@ -67,8 +68,7 @@ LSRUpdateR_results_ui <- function(id) {
     ),
     
     div(style = "display: flex; flex-direction: row; align-items: center; gap: 20px; margin-bottom: 20px;",
-        actionButton(ns("continue"), label = "Continue", icon = shiny::icon("right-long")),
-        actionButton(ns("cancel"), label = "Cancel", icon = shiny::icon("circle-xmark"))
+        uiOutput(ns("action_buttons"))
     )
   )
   
@@ -80,17 +80,20 @@ LSRUpdateR_results_ui <- function(id) {
 #' @param LSRUpdateR_session Session from LSRUpdateR page (needed for navbar_select)
 #' @param active_page Reactive indicator of which navpage LSRUpdateR tab is currently on
 #' @param LSRUpdateR_results Results object from running LSRUpdateR
-#' @param activity_record Beginnings of an activity record from running LSRUpdateR
+#' @param activity ReactiveVal of the entire current activity log
 #' @param thresholds Reactive dataframe of currently chosen thresholds
 #' @param latest_data_df Reactive dataframe of summarised latest data
-#' @param data_object Data object from data page containing reactive objects (includes datasets, last search date, and unique studies)
+#' @param cleaned_data Datasets with old studies excluded
 #' @param results_summary Reactive dataframe that summarises latest results
+#' @param demo_date The current date for the demo
 #'
 #' @return 
-LSRUpdateR_results_server <- function(id, LSRUpdateR_session, active_page, LSRUpdateR_results, activity_record, thresholds, latest_data_df, data_object, results_summary) {
+LSRUpdateR_results_server <- function(id, LSRUpdateR_session, active_page, LSRUpdateR_results, activity, thresholds, latest_data_df, cleaned_data, results_summary, demo_date) {
   moduleServer(
     id,
     function(input, output, session) {
+      
+      ns <- session$ns
 
       
       ### Ascertain which scenarios LSRUpdateR suggested a update ###
@@ -477,11 +480,139 @@ LSRUpdateR_results_server <- function(id, LSRUpdateR_session, active_page, LSRUp
       ### Add Estimate details ###
       #--------------------------#
       
+      # Funnel plot
+      
+      output$funnel_plot <- renderPlot({
+        
+        if (viewed_new_df()$GRADE_results$studies_no - viewed_old_df()$studies_no == 0) {
+          
+          # Where there are no new studies, state, but still print plot
+          viewed_data_frame <- data[[paste0(outcome_filter_lookup[input$outcome_filter], "_df")]] %>% filter(Comparator == input$comparison_filter)
+          
+          ExtendedFunnelPlot(
+            events_trt = viewed_data_frame$Experimental_cases,
+            events_ctrl = viewed_data_frame$Control_cases,
+            n_trt = viewed_data_frame$Experimental_N,
+            n_ctrl = viewed_data_frame$Control_N,
+            method = 'MH',
+            ma_outcome = 'RR',
+            est_pos = as.numeric(viewed_thresholds()$Value[viewed_thresholds()$Input == 'pos_clin']),
+            est_neg = as.numeric(viewed_thresholds()$Value[viewed_thresholds()$Input == 'neg_clin']),
+          ) + labs(title = "Note that there are no new studies.")
+          
+          
+        } else {
+          
+          viewed_new_df()$pooled_results$threshold_plot
+          
+        }
+        
+        
+        
+      })
+      
+      # Overall text relating to point estimate #
+      
+      output$detail_text_estimate <- renderUI({
+        
+        clin_thresholds <- sort(c(viewed_thresholds()$Value[viewed_thresholds()$Input == 'pos_clin'],
+                             viewed_thresholds()$Value[viewed_thresholds()$Input == 'neg_clin']))
+        
+        
+        current_state_paragraph <- paste0("Under the latest public update which included studies identified in searches up to <i>", 
+                                          format(latest_data_df() %>% filter(stringr::str_detect(Status, "update")) %>% pull(Search_date) %>% max(), "%d %B %Y"),
+                                          "</i>, the pooled RR was <b>",
+                                          viewed_summaries()$RR, " ", viewed_old_df()$CI, 
+                                          " </b> - ", 
+                                          clinical_threshold_wording(effect = viewed_summaries()$RR_clin,
+                                                                     threshold_higher = clin_thresholds[2],
+                                                                     threshold_lower = clin_thresholds[1])
+        )
+        
+        
+        if (filter_key() %in% suggested_scenarios()) {
+          addition_change <- paste0("Addition of the new study(ies) gave a pooled RR of <b>",
+                                    round(exp(viewed_new_df()$pooled_results$new_ma$beta), 2), " ", viewed_new_df()$GRADE_results$CI,
+                                    "</b> - ",
+                                    clinical_threshold_wording(effect = viewed_summaries()$RR_clin,
+                                                               threshold_higher = clin_thresholds[2],
+                                                               threshold_lower = clin_thresholds[1]))
+        } else {
+          if (viewed_new_df()$GRADE_results$studies_no - viewed_old_df()$studies_no != 0) {
+            # If there were new studies
+            addition_change <- paste0("Addition of the new study(ies) gave a pooled RR of <b>",
+                                      round(exp(viewed_new_df()$pooled_results$new_ma$beta), 2), " ", viewed_new_df()$GRADE_results$CI,
+                                      "</b> - this does not give a new clinical interpretation.")
+          } else {
+            # If there were no new studies
+            addition_change <- ""
+          }
+          
+        }
+        
+        additional_data_paragraph <- paste0("By including search results from <i>",
+                                            format(latest_data_df() %>% pull(Search_date) %>% max(), "%d %B %Y"),
+                                            "</i>, this gave <i>",
+                                            viewed_new_df()$GRADE_results$studies_no - viewed_old_df()$studies_no,
+                                            " new study(ies)</i> for the ",
+                                            input$outcome_filter, " outcome in the ", input$comparison_filter, " comparison. ",
+                                            addition_change
+        )
+        
+        
+        HTML(paste0(
+          current_state_paragraph, "<br><br>",
+          additional_data_paragraph)
+        )
+        
+      })
+      
+      
+      ### Update Activity Log ###
+      #-------------------------#
+      
+      observe({
+        req(active_page() == "results")
+      
+        if (length(suggested_scenarios()) == 0) {
+          
+          activity_log <- activity() %>%
+            add_row(Date = demo_date(), Category = "LSRUpdateR",
+                    Details = paste0("LSRUpdateR was run on ", format(demo_date(), "%d %B %Y"), ". 
+                                     LSRUpdateR did not suggest an update and so no update was conducted."))
+          activity(activity_log)
+
+        } else {
+        
+          # To be added
+        
+        }
+        
+      }) |>
+        bindEvent(active_page())
+      
       
       ### Action buttons ###
       #--------------------#
       
-      # Consider having the button say something different if there is/isn't a suggested update?
+      output$action_buttons <- renderUI({
+        
+        if (length(suggested_scenarios()) == 0) {
+          
+          # When no updated suggested
+          div(
+            actionButton(ns("return"), label = "Return", icon = shiny::icon("right-long"))
+          )
+          
+        } else {
+          
+          div(
+            actionButton(ns("continue"), label = "Continue", icon = shiny::icon("right-long")),
+            actionButton(ns("cancel"), label = "Cancel", icon = shiny::icon("circle-xmark"))
+          )
+        }
+
+      })
       
       observeEvent(input$continue, {
         bslib::nav_select("LSRUpdateR_navbar", selected = "confirmation", session = LSRUpdateR_session)
@@ -490,6 +621,17 @@ LSRUpdateR_results_server <- function(id, LSRUpdateR_session, active_page, LSRUp
       observeEvent(input$cancel, {
         bslib::nav_select("LSRUpdateR_navbar", selected = "home", session = LSRUpdateR_session)
       })
+      
+      observeEvent(input$return, {
+        bslib::nav_select("LSRUpdateR_navbar", selected = "home", session = LSRUpdateR_session)
+      })
+      
+      ### Return objects ###
+      #--------------------#
+      
+      return(list(
+        
+      ))
       
     }
   )

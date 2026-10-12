@@ -1,0 +1,742 @@
+library(ggplot2)
+library(metafor)
+library(progressr)
+library(rmeta)
+library(grid)
+
+#' Function to give extended funnel plot, without new study data
+#' 
+#' @param SS effect estimates of the current studies (log scale if ratio)		
+#' @param seSS standard errors of the current studies (log scale if ratio)
+#' @param events_trt Number of events in treatment arm of current studies
+#' @param events_ctrl Number of events in control arm of current studies
+#' @param n_trt Total sample size of treatment arm of current studies
+#' @param n_ctrl Total sample size of control arm of current studies
+#' @param sig_level significance level
+#' @param method type of meta-analysis - "EE", "MH" or "DL"
+#' @param ma_outcome type of outcome measure - "OR", "RR", "RD", "MD", "SMD"
+#' @param ylim limits of the y axis	in form c(y1, y2) 
+#' @param xlim limits of the x axis in form c(x1, x2)
+#' @param contour_points number of points for creating contours with a random-effects model - more means a smoother contour but takes longer to compute	
+#' @param draw_plot TRUE/FALSE for drawing an extended funnel plot of the contour thresholds used
+#' @param legend - TRUE/FALSE for displaying key/legend	
+#' @param expxticks custom ticks for the x axis on a exponential scale (assumes data is already on log scale)
+#' @param xticks custom ticks for the x axis
+#' @param yticks custom ticks for the y axis
+#' @param zero value for the null effect (usually 0, even when expxticks is used for odds ratios)
+#' @param lower value for which the user wants the lower CI bound to be as high as
+#' @param upper value for which the user wants the upper CI bound to be as low as	
+#' @param est_pos Value for which the user wants to specify the estimate to be as high as
+#' @param est_neg Value for which the user wants to specify the estimate to be as low as
+#' @param xlab label for the x axis		
+#' @param ylab label for the y axis
+#' @param plot_threshold TRUE/FALSE plot the threshold value vertical line as defined by the argument 'zero', 'lower', or 'upper'	
+#' @param plot_current_line TRUE/FALSE plot the updated pooled effect vertical line of current studies
+#' @param legendpos position of legend as per ggplot styling	
+#' @param plot_current_diamond TRUE/FALSE plot current summary diamond including pooled effect and confidence interval (significance level as defined by sig.level)
+#' @param summ_pos adjustment of position of summary diamond
+#' @param points - TRUE/FALSE whether the study points should be displayed at all (TRUE default)
+#' @param pred_interval TRUE/FALSE display predictive interval along with the summary diamond
+#' @param tau2 TRUE/FALSE display tau2 values (TRUE default)
+#' @param rand.load TRUE/FALSE show percentage of computations complete when the random effects contours are calculated
+#' @return threshold_plot - the extended funnel plot that visualises the threshold and whether it was met
+#'              
+ExtendedFunnelPlot <- function(
+    SS = NULL,
+    seSS = NULL,
+    events_trt = NULL,
+    events_ctrl = NULL,
+    n_trt = NULL,
+    n_ctrl = NULL,
+    sig_level = 0.05,
+    method = 'EE',
+    ma_outcome = 'RR',
+    ylim = NULL,
+    xlim = NULL,
+    contour_points = 200,
+    draw_plot = TRUE,
+    legend = TRUE,
+    expxticks = NULL,
+    xticks = NULL,
+    yticks = NULL,
+    zero = NA,
+    lower = NA,
+    upper = NA,
+    est_pos = NA,
+    est_neg = NA,
+    xlab = paste0 ("Effect (", ma_outcome, ")"),
+    ylab = ifelse(method == "MH", "Weight", "Standard Error"),
+    plot_threshold = TRUE,
+    plot_current_line = TRUE,
+    legendpos = NULL,
+    plot_current_diamond = TRUE,
+    summ_pos = 0,
+    points = TRUE,
+    pred_interval = FALSE,
+    tau2 = TRUE,
+    rand_load = 100
+) {
+  
+  
+  #----------------------------------------#
+  # Calculate initial arguments/parameters #
+  #----------------------------------------#
+  
+  #Convert the significance level into 'z' from the normal distribution (i.e. 0.05 -> 1.96)
+  ci <- qnorm(1 - sig_level / 2)
+  
+  #Calculate current meta-analysis (using rma from {metafor}) (if there is suitable data)
+  if (method == "MH") {
+    current_meta <- metafor::rma.mh(ai = events_trt, ci = events_ctrl, n1i = n_trt, n2i = n_ctrl, level = (1 - sig_level), measure = ma_outcome,
+                                    drop00 = c(TRUE, TRUE), add = c(0.5, 0.5), to = c("only0", "only0"))
+  } else {
+    current_meta <- metafor::rma(yi = SS, sei = seSS, method = method, level = (1 - sig_level), measure = ma_outcome)
+  }
+  current_tau2 <- current_meta$tau2
+
+  
+  # Calculate SS (and seSS) when MH is chosen (or variances not given)
+  if (is.null(seSS)) {
+    if (method == "MH") {
+      SS <- exp(as.vector(na.omit(current_meta$yi.f[1:length(events_trt)]))) # everything needs to be on original scale for MH option and seSS is not needed
+    } else {
+      SS <- as.vector(na.omit(current_meta$yi.f[1:length(events_trt)]))
+      seSS <- sqrt(as.vector(na.omit(current_meta$vi.f[1:length(events_trt)])))
+    }
+  }
+  
+  
+  #---------------------------#
+  # NEW WEIGHTINGS of studies #
+  #---------------------------#
+  
+  if (draw_plot) {
+    
+    # Weights are calculated the same whether 'current' or 'new'
+    if (method == "MH") { # weight estimate from Greenland and Robins
+      # zero adjustment
+      zero_row <- xor(events_ctrl == 0, events_trt == 0)
+      size_current <- ifelse(zero_row,
+                             ((events_ctrl + 0.5)*(n_trt + 1))/((n_trt + 1) + (n_ctrl + 1)),
+                             (events_ctrl*n_trt)/(n_trt + n_ctrl))
+      size_current <- size_current[size_current != 0] # removes double zero entries
+    } else if (method == "DL") {
+      size_current <- 1 / ((seSS^2) + current_tau2)  # standard inverse-variance weighting
+    } else {
+      size_current <- 1 / (seSS^2)
+    }
+    
+  }
+  
+  #-----------------------------------#
+  # Intelligent y-axis default limits #
+  #-----------------------------------#
+  
+  if (draw_plot) {
+    
+    if (length(na.omit(SS)) != 0) {
+      
+      if (method == "MH") {
+        weightdiff <- max(c(size_current), na.rm = TRUE) - min(c(size_current), na.rm = TRUE)
+      } else {
+        sediff <- max(c(seSS), na.rm = TRUE) - min(c(seSS), na.rm = TRUE)
+      }
+      
+      if (!is.null(ylim) && ylim[1] < ylim[2] & method != "MH") {
+        ylim <- rev(ylim)  # for when the user has already defined y limits, reverse them for standard error
+      }
+      
+      if (is.null(ylim)) {
+        if (method == "MH") {
+          ylim <- c(min(c(size_current), na.rm = TRUE) - 0.25 * weightdiff, max(c(size_current), na.rm = TRUE) + 0.20 * weightdiff)
+          if (ylim[1] <= 0) {
+            ylim[1] <- min(c(size_current, 0.01))
+          }
+        } else {
+          ylim <- c(max(c(seSS), na.rm = TRUE) + 0.20 * sediff, min(c(seSS), na.rm = TRUE) - 0.25 * sediff)
+          if (ylim[2] < 0) {
+            ylim[2] <- 0
+          }
+        }
+        
+      }
+      
+      axisdiff <- abs(ylim[2] - ylim[1])
+      
+    }
+    
+  }
+  
+  #-----------------------------------#
+  # Intelligent x-axis default limits #
+  #-----------------------------------#
+  
+  if (draw_plot) {
+    
+    if (length(na.omit(SS)) != 0) {
+      
+      # log if user specified and outcome is a ratio (but not MH)
+      if (!is.null(xlim) & ma_outcome %in% c('OR', 'RR') & method != "MH") {
+        xlim <- log(xlim)
+      }
+      
+      # Default limits
+      SSdiff <- max(c(SS), na.rm = TRUE) - min(c(SS), na.rm = TRUE)
+      
+      if (is.null(xlim)) {
+        xlim <- c(min(c(SS), na.rm = TRUE) - 0.01 * SSdiff, max(c(SS), na.rm = TRUE) + 0.01 * SSdiff)
+      }
+      if (method == "MH") {
+        if (xlim[1] <= 0) {
+          xlim[1] <- min(c(0.01, SS))
+        }
+      }
+      
+    }
+    
+  }
+  
+  #-------------------------------------------------#
+  # Vector of weights/sizes to define contours upon #
+  #-------------------------------------------------#
+  
+  if (draw_plot) {
+    
+    if (length(na.omit(SS)) != 0) {
+      
+      cSS <- seq(xlim[1], xlim[2], length.out = contour_points)  # granulated vector for effect size (x-axis)
+      csize <- seq(ylim[1], ylim[2], length.out = contour_points)  # granulated vector for standard error (y-axis)
+      if (method != "MH") {
+        csize[csize <= 0] <- 0.0000001 * min(c(seSS))
+        for (k in 2:length(csize)) {
+          if (csize[k] == 0 & csize[k-1] == 0) {
+            csize[k] <- NA
+          }
+        }
+        csize <- csize[!is.na(csize)]   # remove unnecessary data points
+      }
+      
+    }
+    
+  }
+  
+  #------------------------------#
+  # Create significance contours #
+  #------------------------------#
+  
+  # Transform user-specified thresholds if outcome is a ratio
+  # But not when using MH estimator as weights are based on original scale
+  if (ma_outcome %in% c('OR', 'RR') & method != "MH") {
+    if (!is.na(zero)) {
+      zero <- log(zero)
+    } else if (!is.na(lower)) {
+      lower <- log(lower)
+    } else if (!is.na(upper)) {
+      upper <- log(upper)
+    } else if (!is.na(est_pos) | !is.na(est_neg)) {
+      if (!is.na(est_pos)) {est_pos <- log(est_pos)}
+      if (!is.na(est_neg)) {est_neg <- log(est_neg)}
+    }
+  }
+  
+  if (draw_plot) {
+    
+    if (length(na.omit(SS)) != 0) {
+      
+      # fixed-effect model #
+      if (method %in% c("EE", "MH"))  {
+        if (method == "EE") {
+          vwt <- 1 / (csize^2)     # weight for each point on plot (inverse of variance) (i.e. weight of new study)
+        } else if (method == "MH") {
+          vwt <- csize # weights already calculated earlier
+        }
+        if (!is.na(zero)) {
+          c1SS <- (1 / vwt) * (zero * (sum(size_current) + vwt) - sum(size_current * SS) +  ci * (sum(size_current) + vwt)^0.5)   # formulae based on CI boundaries of new MA meeting no effect
+          c2SS <- (1 / vwt) * (zero * (sum(size_current) + vwt) - sum(size_current * SS) -  ci * (sum(size_current) + vwt)^0.5)
+        } else if (!is.na(lower)) {
+          c1SS <- (1 / vwt) * (lower * (sum(size_current) + vwt) - sum(size_current * SS) +  ci * (sum(size_current) + vwt)^0.5)
+        } else if (!is.na(upper)) {
+          c2SS <- (1 / vwt) * (upper * (sum(size_current) + vwt) - sum(size_current * SS) -  ci * (sum(size_current) + vwt)^0.5)
+        } else if (!is.na(est_pos) | !is.na(est_neg)) {
+          if (!is.na(est_pos)) {
+            c1SS <- (1 / vwt) * (est_pos * (sum(size_current) + vwt) - sum(size_current * SS))
+          }
+          if (!is.na(est_neg)) {
+            c2SS <- (1 / vwt) * (est_neg * (sum(size_current) + vwt) - sum(size_current * SS))
+          }
+        }
+      }
+      
+      # random-effects model #
+      if (method == "DL")  {
+        
+        # optimised grid of all contour points
+        contour_tiles <- expand.grid(i = seq_along(cSS), j = seq_along(csize))
+        
+        progressr::with_progress({
+          p <- progressr::progressor(steps = nrow(contour_tiles))  # progress bar
+          
+          # calculate results for each grid point
+          results <- purrr::pmap(contour_tiles, function(i, j) {
+            
+            # using rmeta::meta.summaries as it's much faster than metafor::rma
+            metacont <- rmeta::meta.summaries(d = c(SS, cSS[i]), se = c(seSS, csize[j]), method = "random", conf.level = (1-sig_level))
+            est <- metacont$summary
+            lc <- metacont$summary - ci*metacont$se.summary
+            uc <- metacont$summary + ci*metacont$se.summary
+
+            p() #update progress
+            
+            # code according to threshold
+            if (!is.na(zero)) {
+              if (lc < zero & uc < zero) return("sigless_col")   # sig < 0
+              if (lc < zero & uc > zero) return("nosig_col")   # not sig
+              if (lc > zero & uc > zero) return("sigmore_col")   # sig > 0
+            } else if (!is.na(lower)) {
+              if (lc > lower) return("clinsig_col")
+              if (lc <= lower) return("noclinsig_col")
+            } else if (!is.na(upper)) {
+              if (uc < upper) return("clinsig_col")
+              if (uc >= upper) return("noclinsig_col")
+            } else if (!is.na(est_pos) & !is.na(est_neg)) {
+              if (est < est_neg) return("sigless_col")  
+              if (est >= est_neg & est <= est_pos) return("nosig_col")
+              if (est > est_pos) return("sigmore_col")
+            } else if (!is.na(est_pos)) {
+              if (est <= est_pos) return("nosig_col")
+              if (est > est_pos) return("sigmore_col")
+            } else if (!is.na(est_neg)) {
+              if (est < est_neg) return("sigless_col")  
+              if (est >= est_neg) return("nosig_col")
+            }
+            NA_character_
+          })
+          
+          # Assign values to contour_tiles
+          contour_tiles$code <- unlist(results)
+          
+        })
+        
+        contour_tiles <- cbind(contour_tiles, expand.grid(cSS = cSS, csize = csize))
+      }
+      
+    }
+    
+  }
+  
+
+  #------------------#
+  # Summary diamonds #
+  #------------------#
+  
+  if (draw_plot) {
+    
+    if (length(na.omit(SS)) != 0) {
+      
+      if (plot_current_diamond & length(na.omit(SS)) != 0) {
+        if (method == "MH") {
+          xsumm = exp(c(current_meta$ci.lb, current_meta$b, current_meta$ci.ub, current_meta$b))
+          summary_diamond_current <- data.frame(
+            xsumm = xsumm,
+            ysumm = c(ylim[2] - 0.10 * axisdiff + summ_pos, ylim[2] - 0.07 * axisdiff + summ_pos, 
+                      ylim[2] - 0.10 * axisdiff + summ_pos, ylim[2] - 0.13 * axisdiff + summ_pos)
+          )
+        } else {
+          xsumm = c(current_meta$ci.lb, current_meta$b, current_meta$ci.ub, current_meta$b)
+          summary_diamond_current <- data.frame(
+            xsumm = xsumm,
+            ysumm = c(ylim[2] + 0.10 * axisdiff + summ_pos, ylim[2] + 0.07 * axisdiff + summ_pos, 
+                      ylim[2] + 0.10 * axisdiff + summ_pos, ylim[2] + 0.13 * axisdiff + summ_pos)
+          )
+        }
+        
+        
+        if (pred_interval & length(na.omit(SS)) != 0) {	
+          if (method == 'DL') {
+            predint1_current <- predict(current_meta)$pi.lb
+            predint2_current <- predict(current_meta)$pi.ub
+            # update x-axis limits if predictive interval is wider
+            xlim <- c(min(predint1_current - 0.2 * SSdiff, xlim[1]), max(predint2_current + 0.2 * SSdiff, xlim[2]))
+          } else {
+            print("For fixed-effects models, tau-squared is equal to 0 and therefore the PI becomes equivalent to the CI")
+          }
+        }
+      }
+      
+    }
+    
+    #---------------#
+    # Design legend #
+    #---------------#
+    
+    # empty data frame ready for filling (one for each type of legend)
+    legendmat.col.values <- NULL
+    legendmat.col <- data.frame(labels = rep(NA, 4), linetype = rep(NA, 4), shape = rep(NA, 4), color = rep(NA, 4), fill = rep(NA, 4))
+    legendmat.fill.values <- NULL
+    legendmat.fill.labels <- NULL
+    
+    if (points) {
+      legendmat.col.values <- c(legendmat.col.values, "point_col" = "black")
+      legendmat.col$labels[1] <- "Current studies"
+      legendmat.col$linetype[1] <- "blank"
+      legendmat.col$shape[1] <- 19
+      legendmat.col$color[1] <- "black"
+    }
+    
+    if (pred_interval) {
+      legendmat.col.values <- c(legendmat.col.values, "pred_col" = "black")
+      legendmat.col$labels[2] <- "95% Predictive Interval"
+      legendmat.col$linetype[2] <- "solid"
+      legendmat.col$color[2] <- "black"
+    }
+    
+    if (plot_current_line) {
+      legendmat.col.values <- c(legendmat.col.values, "plot_current_diamond_col" = "mediumpurple4")
+      legendmat.col$labels[3] <- "Current Pooled Effect"
+      legendmat.col$linetype[3] <- "solid"
+      legendmat.col$color[3] <- "mediumpurple4"
+    }
+    
+    if (plot_threshold) {
+      legendmat.col.values <- c(legendmat.col.values, "threshold_col" = "lightgrey")
+      legendmat.col$labels[4] <- "Threshold value"
+      legendmat.col$linetype[4] <- "solid"
+      legendmat.col$color[4] <- "lightgray"
+    }
+    
+    if (plot_current_diamond) {
+      legendmat.fill.values <- c(legendmat.fill.values, "diamond_fill_current" = "plum4")
+      legendmat.fill.labels <- c(legendmat.fill.labels, paste0("Current Pooled Result (diamond - ", round((1-sig_level)*100, 1), "% CI)"))
+    }
+    
+    if (!is.na(zero)) {
+      legendmat.fill.values <- c(legendmat.fill.values, "nosig_col" = "white", "sigless_col" = "gray91", "sigmore_col" = "gray72")
+      legendmat.fill.labels <- c(legendmat.fill.labels, paste0("Non Sig Effect (", sig_level*100, "% level)"), paste0("Sig Effect < NULL (", sig_level*100, "% level)"), paste0("Sig Effect > NULL (", sig_level*100, "% level)"))
+    } else if (!is.na(lower) | !is.na(upper)) {
+      legendmat.fill.values <- c(legendmat.fill.values, "noclinsig_col" = "white", "clinsig_col" = "gray72")
+      if (!is.na(lower)) {
+        legendmat.fill.labels <- c(legendmat.fill.labels, paste0("Non Sig Effect (", round((1-sig_level)*100, 1), "%CI crosses ", ifelse(ma_outcome %in% c('OR', 'RR') & method != "MH", exp(lower), lower), ")"), paste0("Sig Effect (", round((1-sig_level)*100, 1), "%CI is higher than ", ifelse(ma_outcome %in% c('OR', 'RR'), exp(lower), lower), ")"))
+      } else {
+        legendmat.fill.labels <- c(legendmat.fill.labels, paste0("Non Sig Effect (", round((1-sig_level)*100, 1), "%CI crosses ", ifelse(ma_outcome %in% c('OR', 'RR') & method != "MH", exp(upper), upper), ")"), paste0("Sig Effect (", round((1-sig_level)*100, 1), "%CI is lower than ", ifelse(ma_outcome %in% c('OR', 'RR'), exp(upper), upper), ")"))
+      }
+    } else if (!is.na(est_pos) & !is.na(est_neg)) {
+      legendmat.fill.values <- c(legendmat.fill.values, "nosig_col" = "white", "sigless_col" = "gray91", "sigmore_col" = "gray72")
+      legendmat.fill.labels <- c(legendmat.fill.labels, "Non clinically significant result", paste0("Clinically negative effect (less than ", ifelse(ma_outcome %in% c('OR', 'RR') & method != "MH", exp(est_neg), est_neg), " )"), paste0("Clinically positive effect (more than ", ifelse(ma_outcome %in% c('OR', 'RR') & method != "MH", exp(est_pos), est_pos), " )"))
+    } else if (!is.na(est_pos)) {
+      legendmat.fill.values <- c(legendmat.fill.values, "nosig_col" = "white", "sigmore_col" = "gray72")
+      legendmat.fill.labels <- c(legendmat.fill.labels, "Non clinically significant result", paste0("Clinically positive effect (more than ", ifelse(ma_outcome %in% c('OR', 'RR') & method != "MH", exp(est_pos), est_pos), " )"))
+    } else if (!is.na(est_neg)) {
+      legendmat.fill.values <- c(legendmat.fill.values, "nosig_col" = "white", "sigless_col" = "gray91")
+      legendmat.fill.labels <- c(legendmat.fill.labels, "Non clinically significant result", paste0("Clinically negative effect (less than ", ifelse(ma_outcome %in% c('OR', 'RR') & method != "MH", exp(est_neg), est_neg), " )"))
+    }
+    
+    # drop rows that are not included (based on inputs)
+    legendmat.col <- legendmat.col[!is.na(legendmat.col$labels), ]
+    
+    
+  }
+  
+  #-------------------#
+  # Put together plot #
+  #-------------------#
+  
+  if (draw_plot & length(na.omit(SS)) != 0) {
+    
+    # empty frame
+    if (method == "MH") {
+      plot <- ggplot(data = data.frame(x = SS, y = size_current), aes(x = x, y = y)) +
+        scale_y_continuous(expand = c(0, 0))
+    } else {
+      plot <- ggplot(data = data.frame(x = SS, y = seSS), aes(x = x, y = y)) +
+        scale_y_reverse(expand = c(0, 0))
+    }
+    plot <- plot +
+      labs(x = xlab, y = ylab) +
+      theme_classic() + theme(aspect.ratio = 1, panel.background = element_rect(colour = "black")) +
+      scale_x_continuous(expand = c(0, 0)) +
+      coord_cartesian(xlim = xlim, ylim = ylim)
+    
+    
+    # Exponential x axis ticks if outcome is a ratio (and no ticks given)
+    if (ma_outcome %in% c('OR', 'RR') & is.null(expxticks)) {
+      if (method == "MH") {
+        plot <- plot +
+          scale_x_continuous(trans = "log", breaks = c(0.25, 0.5, 1, 2, 4), labels = scales::label_number(), expand = c(0,0))
+      } else {
+        plot <- plot +
+          scale_x_continuous(breaks = log(c(0.25, 0.5, 1, 2, 4)), labels = c(0.25, 0.5, 1, 2, 4), expand = c(0,0)) 
+      }
+    }
+    
+    # Specify axis ticks if specified
+    # x axis ticks for exponential effects
+    if (!is.null(expxticks)) {
+      if (method == "MH") {
+        plot <- plot +
+          scale_x_continuous(trans = "log", breaks = expxticks, labels = scales::label_number(expxticks), expand = c(0,0))
+      } else {
+        plot <- plot +
+          scale_x_continuous(breaks = log(expxticks), labels = expxticks, expand = c(0, 0))
+      }
+    }
+    # x axis ticks (non exp)
+    if (!is.null(xticks)) {
+      plot <- plot +
+        scale_x_continuous(breaks = xticks, labels = xticks, expand = c(0, 0))
+    }
+    # y axis ticks
+    if (!is.null(yticks)) {
+      if (method == "MH") {
+        plot <- plot +
+          scale_y_continuous(breaks = yticks, labels = yticks, expand = c(0, 0))
+      } else {
+        plot <- plot +
+          scale_y_reverse(breaks = yticks, labels = yticks, expand = c(0, 0))
+      }
+    }
+    
+    # contours
+    if (method %in% c('EE', 'MH')) {
+      if (!is.na(zero)) {
+        plot <- plot +
+          geom_polygon(
+            data = data.frame(x = c(c1SS, rev(c2SS)), y = c(csize, rev(csize))),
+            aes(x = x, y = y, fill = "nosig_col"),
+            color = "white"
+          ) +
+          geom_polygon(
+            data = data.frame(x = c(c2SS, xlim[1], xlim[1]), y = c(csize, ylim[2], ylim[1])),
+            aes(x = x, y = y, fill = "sigless_col"),
+            color = "gray91"
+          ) +
+          geom_polygon(
+            data = data.frame(x = c(c1SS, xlim[2], xlim[2]), y = c(csize, ylim[2], ylim[1])),
+            aes(x = x, y = y, fill = "sigmore_col"),
+            color = "gray72"
+          )
+      } else if (!is.na(lower)) {
+        plot <- plot +
+          geom_polygon(
+            data = data.frame(x = c(xlim[1], c1SS, xlim[2], xlim[1]), y = c(ylim[1], csize, ylim[2], ylim[2])),
+            aes(x = x, y = y, fill = "noclinsig_col"),
+            color = "white"
+          ) +
+          geom_polygon(
+            data = data.frame(x = c(c1SS, xlim[2], xlim[2]), y = c(csize, ylim[2], ylim[1])),
+            aes(x = x, y = y, fill = "clinsig_col"),
+            color = "gray72"
+          )
+      } else if (!is.na(upper)) {
+        plot <- plot +
+          geom_polygon(
+            data = data.frame(x = c(xlim[2], c2SS, xlim[1], xlim[2]), y = c(ylim[1], csize, ylim[2], ylim[2])),
+            aes(x = x, y = y, fill = "noclinsig_col"),
+            color = "white"
+          ) +
+          geom_polygon(
+            data = data.frame(x = c(c2SS, xlim[1], xlim[1]), y = c(csize, ylim[2], ylim[1])),
+            aes(x = x, y = y, fill = "clinsig_col"),
+            color = "gray72"
+          )
+      } else if (!is.na(est_pos) | !is.na(est_neg)) {
+        if (!is.na(est_pos)) {
+          poly_df <- data.frame(
+            x = c(c1SS, xlim[2], xlim[2], xlim[1]),
+            y = c(csize, ylim[2], ylim[1], ylim[1])
+          )
+          poly_df$x <- pmax(poly_df$x, xlim[1])
+          plot <- plot +
+            geom_polygon(
+              data = poly_df,
+              aes(x = x, y = y, fill = "sigmore_col"),
+              color = "gray72"
+            )
+        }
+        if (!is.na(est_neg)) {
+          poly_df <- data.frame(
+            x = c(c2SS, xlim[1], xlim[1]),
+            y = c(csize, ylim[2], ylim[1])
+          )
+          poly_df$x <- pmax(poly_df$x, xlim[1])
+          plot <- plot +
+            geom_polygon(
+              data = poly_df,
+              aes(x = x, y = y, fill = "sigless_col"),
+              color = "gray91"
+            )
+        }
+        if (is.na(est_neg)) {
+          plot <- plot +
+            geom_polygon(
+              data = data.frame(x = c(xlim[1], c1SS, xlim[2], xlim[1]), y = c(ylim[1], csize, ylim[2], ylim[2])),
+              aes(x = x, y = y, fill = "nosig_col"),
+              color = "white"
+            )
+        } else if (is.na(est_pos)) {
+          plot <- plot +
+            geom_polygon(
+              data = data.frame(x = c(xlim[2], c2SS, xlim[1], xlim[2]), y = c(ylim[1], csize, ylim[2], ylim[2])),
+              aes(x = x, y = y, fill = "nosig_col"),
+              color = "white"
+            )
+        } else {
+          poly_df <- data.frame(
+            x = c(c1SS, rev(c2SS)),
+            y = c(csize, rev(csize))
+          )
+          poly_df$x <- pmax(poly_df$x, xlim[1])
+          plot <- plot +
+            geom_polygon(
+              data = poly_df,
+              aes(x = x, y = y, fill = "nosig_col"),
+              color = "white"
+            )
+        }
+      } 
+    }
+    if (method == 'DL') {
+      plot <- plot +
+        geom_raster(data = contour_tiles, 
+                    aes(x = cSS, y = csize, fill = code))
+    }
+    
+    # Pooled effect lines
+    if (plot_current_line & length(na.omit(SS)) != 0) {
+      plot <- plot +
+        geom_vline(aes(xintercept = ifelse(method == "MH", exp(current_meta$b), current_meta$b), color = "plot_current_diamond_col"))
+    }
+    
+    # summary diamonds
+    if (plot_current_diamond) {
+      if (pred_interval) {
+        plot <- plot +
+          geom_segment(
+            aes(
+              x = predint1_current,
+              y = ylim[2] - 0.10 * axisdiff + summ_pos,
+              xend = predint2_current,
+              yend = ylim[2] - 0.10 * axisdiff + summ_pos,
+              color = "pred_col"
+            ),
+            show_legend = ifelse(plot_current_line | plot_zero, FALSE, TRUE)
+          )   # needed to avoid crosshairs in legend for when there are vlines also present
+      }
+      plot <- plot +
+        geom_polygon(data = summary_diamond_current, 
+                     aes(x = xsumm, y = ysumm, fill = "diamond_fill_current"), 
+                     color = "black", alpha = 0.8)
+    }
+    
+
+    # Null vertical line
+    if (plot_threshold) {
+      if (!is.na(zero)) {
+        vertical_lines <- zero
+        
+      } else if (!is.na(lower)) {
+        vertical_lines <- lower
+        
+      } else if (!is.na(upper)) {
+        vertical_lines <- upper
+        
+      } else {
+        vertical_lines <- c(est_pos, est_neg)
+        vertical_lines <- vertical_lines[!is.na(vertical_lines)]
+      }
+      print(vertical_lines)
+      print(length(vertical_lines))
+      
+      plot <- plot +
+        geom_vline(
+          data = data.frame(
+            xintercept = vertical_lines
+          ),
+          aes(xintercept = xintercept, 
+              color = "threshold_col"))
+    }
+    
+    # Study points
+    if (points) {
+      if (method == "MH") {
+        plot <- plot +
+          geom_point(data = data.frame(x = SS, y = size_current), 
+                     aes(x = x, y = y, color = "point_col"), shape = 19)
+      } else {
+        plot <- plot +
+          geom_point(aes(color = "point_col"), shape = 19)
+      }
+    }
+    
+    
+    #Tau2 display
+    if (tau2 & length(na.omit(SS)) != 0) {
+      if (method == 'DL') {
+        tau2_label <- paste0(
+          "atop(", # atop() stacks the new lines
+          "Current~tau^2==", round(current_tau2, 3),
+          ")"
+        )
+        
+        plot <- plot +
+          annotate(
+            geom = "label",
+            x = xlim[1] + 0.05 * (xlim[2] - xlim[1]),
+            y = ylim[2] - 0.85 * (ylim[2] - ylim[1]),
+            label = tau2_label,
+            parse = TRUE,
+            hjust = 0,
+            vjust = 1,
+            size = 3
+          )
+      }
+    }
+    
+    # Add legend
+    plot <- plot +
+      theme(
+        legend.text = element_text(size = 12),
+        legend.key.size = unit(0.8, "cm")
+      )
+    
+    
+    if (!is.null(legendmat.col.values)) {
+      plot <- plot +
+        scale_colour_manual(name = "",
+                            values = legendmat.col.values,
+                            breaks = names(legendmat.col.values), # Keeps ordering
+                            labels = legendmat.col$labels,
+                            guide = guide_legend(override.aes = list(linetype = legendmat.col$linetype,
+                                                                     shape = legendmat.col$shape,
+                                                                     color = legendmat.col$color,
+                                                                     fill = legendmat.col$fill)))
+    }
+    if (!is.null(legendmat.fill.values)) {
+      plot <- plot +
+        scale_fill_manual(name = "",
+                          values = legendmat.fill.values,
+                          labels = legendmat.fill.labels,
+                          breaks = names(legendmat.fill.values))
+    }
+    if (!legend) {
+      plot <- plot +
+        theme(legend.position = "none")   # turns off legend
+    }
+    if (legend & !is.null(legendpos)) {
+      plot <- plot +
+        theme(legend.position = legendpos)   # if user wants legend and specified a position
+    }
+    
+    # return final plot
+    threshold_plot <- plot
+    
+  } else {
+    threshold_plot <- "'draw_plot' was not selected to be TRUE or there was no estimable data in the 'current' version"  # message for when users want the plot but didn't select for it
+  }
+  
+  return(threshold_plot)
+  
+}
+
+#-----------------------------------------#
+#             End of function             #
+#-----------------------------------------#

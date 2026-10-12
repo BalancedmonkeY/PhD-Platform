@@ -190,8 +190,8 @@ LSRUpdateR_home_thresholds_server <- function(id) {
                   "Indicate whether you think there is industry influence present. Industry influence present will lead to downgrading 1 level due to publication bias.",
                   "Indicate whether you think indirectness is present, by considering whether the population, intervention, comparator, and/or outcomes of the studies incorporates what is wanted for the research question.
                   Any indication of indirectness will lead to downgrading 1 level due to indirectness.",
-                  "What outcome value indicates a positive (desired) clinical effect.",
-                  "What outcome value indicates a negative (undesired) clinical effect.")
+                  "What outcome value indicates a positive clinical effect (e.g., RR of 1.04). This does not mean clinical benefit.",
+                  "What outcome value indicates a negative clinical effect (e.g., RR of 0.96). This does not mean clinical harm.")
       )})
       
       observeEvent(
@@ -308,10 +308,10 @@ LSRUpdateR_home_thresholds_server <- function(id) {
                  br(),
                  tags$b("Outcome features"),
                  numericInput(ns("pos_clin"),
-                              label = "Threshold for a positive (desired) clinical effect",
+                              label = "Threshold for a positive clinical effect (e.g., RR above 1)",
                               value = threshold_choices()$Value[threshold_choices()$Comparator == input$comparison_filter & threshold_choices()$Outcome == input$outcome_filter & threshold_choices()$Input == "pos_clin"]),
                  numericInput(ns("neg_clin"),
-                              label = "Threshold for a negative (undesired) clinical effect",
+                              label = "Threshold for a negative clinical effect (e.g., RR below 1)",
                               value = threshold_choices()$Value[threshold_choices()$Comparator == input$comparison_filter & threshold_choices()$Outcome == input$outcome_filter & threshold_choices()$Input == "neg_clin"]),
                  br()
           )

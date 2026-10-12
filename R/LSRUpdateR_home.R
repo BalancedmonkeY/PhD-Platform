@@ -66,11 +66,10 @@ LSRUpdateR_home_ui <- function(id) {
 #' @param latest_data_df Reactive dataframe of summarised latest data
 #' @param data_object Data object from data page containing reactive objects (includes datasets, last search date, and unique studies)
 #' @param results_summary Reactive dataframe of summary of results
-#' @param demo_date The current date for the demo
 #'
 #' @return 
 #' thresholds - Reactive dataframe of threshold currently used
-LSRUpdateR_home_server <- function(id, LSRUpdateR_session, parent_session, activity_df, latest_data_df, data_object, results_summary, demo_date) {
+LSRUpdateR_home_server <- function(id, LSRUpdateR_session, parent_session, activity_df, latest_data_df, data_object, results_summary) {
   moduleServer(
     id,
     function(input, output, session) {
@@ -79,7 +78,7 @@ LSRUpdateR_home_server <- function(id, LSRUpdateR_session, parent_session, activ
       #------------------------------#
       
       LSRUpdateR_results <- reactiveVal(NULL)
-      LSRUpdateR_activity_record <- reactiveVal(NULL)
+      
       
       ### Threshold server ###
       #----------------------#
@@ -119,20 +118,21 @@ LSRUpdateR_home_server <- function(id, LSRUpdateR_session, parent_session, activ
       
           # Unpack data objects
           data <- data_object$data()
-          last_search_date <- max(latest_data_df()$Search_date)
+          most_recent_search_date <- max(latest_data_df()$Search_date)
+          last_update_search_date <- latest_data_df() %>% filter(stringr::str_detect(Status, "update")) %>% pull(Search_date) %>% max()
         
           # Remove any expired studies
-          if(nrow(filter(data$cess_df, Excluded_Date < last_search_date)) != 0) {
+          if(nrow(filter(data$cess_df, Excluded_Date < most_recent_search_date)) != 0) {
             data$cess_df <- data$cess_df %>%
-              filter(Excluded_Date >= last_search_date | is.na(Excluded_Date))
+              filter(Excluded_Date >= most_recent_search_date | is.na(Excluded_Date))
           }
-          if(nrow(filter(data$AE_df, Excluded_Date < last_search_date)) != 0) {
+          if(nrow(filter(data$AE_df, Excluded_Date < most_recent_search_date)) != 0) {
             data$AE_df <- data$AE_df %>%
-              filter(Excluded_Date >= last_search_date | is.na(Excluded_Date))
+              filter(Excluded_Date >= most_recent_search_date | is.na(Excluded_Date))
           }
-          if(nrow(filter(data$SAE_df, Excluded_Date < last_search_date)) != 0) {
+          if(nrow(filter(data$SAE_df, Excluded_Date < most_recent_search_date)) != 0) {
             data$SAE_df <- data$SAE_df %>%
-              filter(Excluded_Date >= last_search_date | is.na(Excluded_Date))
+              filter(Excluded_Date >= most_recent_search_date | is.na(Excluded_Date))
           }
         
           # Create combination grid (i.e., all 9 scenarios)
@@ -156,14 +156,13 @@ LSRUpdateR_home_server <- function(id, LSRUpdateR_session, parent_session, activ
           LSRUpdateR_results <- purrr::pmap(
             combinations,
             ~ run_LSRUpdateR(df_name = ..1, comparator = ..2, outcome = ..3,
-                             last_search_date, thresholds(), results_summary())
+                             last_update_search_date, thresholds(), results_summary())
           )
         
           # Assign names to named list
           names(LSRUpdateR_results) <- combinations$result_name
         
           LSRUpdateR_results(LSRUpdateR_results)
-          LSRUpdateR_activity_record(paste0("LSRUpdateR was run on ", format(demo_date(), "%d %B %Y")))
         
           # End spinner
           shinycssloaders::hidePageSpinner()
@@ -273,8 +272,8 @@ LSRUpdateR_home_server <- function(id, LSRUpdateR_session, parent_session, activ
       ## Return objects needed for other pages
       return(list(
         LSRUpdateR_results = LSRUpdateR_results,
-        LSRUpdateR_activity_record = LSRUpdateR_activity_record,
-        thresholds = thresholds
+        thresholds = thresholds,
+        data = data
       ))
       
     }

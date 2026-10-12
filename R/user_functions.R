@@ -68,6 +68,41 @@ cochrane_conclusion <- function(effect,
   
 }
 
+
+#' Function to give the suggested wording for interpretation of pooled effect with respect to threshold used
+#'
+#' @param effect What was the resulting effect (one of 'increase', 'decrease', or 'no_difference')
+#' @param threshold_higher The threshold value used for ratios above 1
+#' @param threshold_lower The threshold value used for ratios below 1
+#'
+#' @return string containing wording
+
+clinical_threshold_wording <- function(effect,
+                                threshold_higher,
+                                threshold_lower) {
+  
+  # Ensure words are in lower case
+  effect <- tolower(effect)
+  
+  # Create templates for each scenario
+  templates <- list(
+    increase = paste0("this is higher than the threshold of ", threshold_higher, "."),
+    decrease = paste0("this is lower than the threshold of ", threshold_lower, "."),
+    no_difference = paste0("this sits in the non-clinical significance range between ", threshold_lower, " and ", threshold_higher, ".")
+  )
+  
+  # Stopping checks
+  if (!effect %in% c("increase", "decrease", "no_difference")) {
+    stop("effect must be one of: increase, decrease, no_difference")
+  }
+  
+  # Create relevant strings
+  return(
+    templates[[effect]]
+  )
+}
+
+
 #' Function that extracts thresholds from threshold dataframe
 #'
 #' @param df Dataframe from which to extract
