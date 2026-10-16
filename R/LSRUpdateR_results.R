@@ -145,12 +145,14 @@ LSRUpdateR_results_server <- function(id, LSRUpdateR_session, active_page, LSRUp
         #     result_name = paste(comparator_short, dataset_short, sep = "_")
         #   )
         # 
-        # # Run function that calculates quantitative results for each scenario
+        # Run function that calculates quantitative results for each scenario
         # quant_results <- purrr::pmap(
         #   combinations,
         #   ~ run_quant_info(df_name = ..1, comparator = ..2, outcome = ..3,
-        #                    data_obj = data_og, thresholds_df = thresholds())
+        #                    data_obj = data_begin, thresholds_df = thresholds_ecig, 
+        #                    industry = FALSE, search = FALSE, indirectness = FALSE)
         # )
+        # names(quant_results) <- combinations$result_name
         
       }) |>
         bindEvent(c(active_page(), input$outcome_filter, input$comparison_filter))
@@ -170,17 +172,30 @@ LSRUpdateR_results_server <- function(id, LSRUpdateR_session, active_page, LSRUp
                The addition of new studies did not change the GRADE rating or interpretation of point estimate.")
         } else {
         # If updates
+          # Structure for each scenario
           sentences <- sapply(suggested_scenarios(), function(x) {
             scenario_parts <- strsplit(x, "_")[[1]]
             comparator <- scenario_parts[1]
             outcome <- scenario_parts[2]
+            # Take apart text_result into desired components
+            full_text <- sub("^[^.]*\\.\\s*", "", LSRUpdateR_results()[[x]]$text_result) # Removed first generic sentence
+            minus_interp_summ <- sub("LSRUpdateR[^.]*[:.]\\s", "", full_text)
+            text_parts <- strsplit(
+              minus_interp_summ,
+              "LSRUpdateR[^.]*GRADE rating of evidence[:.]\\s",
+              perl = TRUE
+            )[[1]]
+            interpretation_text <- trimws(text_parts[1])
+            grade_text <- trimws(text_parts[2])
             paste0(
-              "LSRUpdateR predicts that the review should be updated for the following reasons:<br>Regarding the ", 
-              outcome_lookup[outcome], " outcome in the ",
-              comparator_lookup[comparator], " vs nicotine ECs comparison:"
+              "<li>Regarding the <b>", outcome_lookup[outcome], "</b> outcome in the <b>",
+              comparator_lookup[comparator], " vs nicotine ECs</b> comparison:<br><ul><li>",
+              interpretation_text, "</li><li>", grade_text,
+              "</li></ul></li>"
             )
           })
-          HTML(paste(sentences, collapse = "<br>"))
+          HTML(paste0("LSRUpdateR predicts that the review <b>should be updated</b> for the following reasons:<br><ul>",
+                      paste(sentences, collapse = "<br>"), "</ul>"))
         }
       })
       
@@ -447,7 +462,49 @@ LSRUpdateR_results_server <- function(id, LSRUpdateR_session, active_page, LSRUp
         
         
         if (filter_key() %in% suggested_scenarios()) {
-          addition_change <- "Some other details that needs calculating when it does suggest any update..."
+          
+          reasons_new <- c(
+            if (viewed_new_df()$GRADE_results$Imprecision != 0)
+              paste0(viewed_new_df()$GRADE_results$Imprecision, " level(s) due to imprecision"),
+            
+            if (viewed_new_df()$GRADE_results$Inconsistency != 0)
+              paste0(viewed_new_df()$GRADE_results$Inconsistency, " level(s) due to inconsistency"),
+            
+            if (viewed_new_df()$GRADE_results$Indirectness != 0)
+              paste0(viewed_new_df()$GRADE_results$Indirectness, " level(s) due to indirectness"),
+            
+            if (viewed_new_df()$GRADE_results$Pubbias != 0)
+              paste0(viewed_new_df()$GRADE_results$Pubbias, " level(s) due to publication bias"),
+            
+            if (viewed_new_df()$GRADE_results$RoB != 0)
+              paste0(viewed_new_df()$GRADE_results$RoB, " level(s) due to risk of bias")
+          )
+          
+          if (length(reasons_new) != 0) {
+            # If there is some downgrading
+            reason_text <- if (length(reasons_new) == 1) {
+              reasons_new
+            } else if (length(reasons_new) == 2) {
+              paste(reasons_new, collapse = " and ")
+            } else {
+              paste0(
+                paste0(reasons_new[-length(reasons_new)], collapse = ", "),
+                ", and ",
+                reasons_new[length(reasons_new)]
+              )
+            }
+            
+            new_downgrading_sentence <- paste0("downgrading ", reason_text, ".")
+            
+          } else {
+            # If there is no downgrading
+            new_downgrading_sentence <- "no downgrading across all domains."
+          }
+          
+          
+          addition_change <- paste0("Addition of the new study(ies) led to the certainty of evidence now graded as <b>",
+                                    viewed_new_df()$GRADE_results$result,
+                                    "</b> - ", new_downgrading_sentence)
         } else {
           if (viewed_new_df()$GRADE_results$studies_no - viewed_old_df()$studies_no != 0) {
             # If there were new studies
@@ -531,17 +588,19 @@ LSRUpdateR_results_server <- function(id, LSRUpdateR_session, active_page, LSRUp
         
         
         if (filter_key() %in% suggested_scenarios()) {
+          RR <- exp(viewed_new_df()$pooled_results$new_ma$beta)
+          RR_clin <- if (RR > clin_thresholds[2]) {"increase"} else if (RR < clin_thresholds[1]) {"decrease"} else {"no_difference"}
           addition_change <- paste0("Addition of the new study(ies) gave a pooled RR of <b>",
-                                    round(exp(viewed_new_df()$pooled_results$new_ma$beta), 2), " ", viewed_new_df()$GRADE_results$CI,
+                                    round(RR, 2), " ", viewed_new_df()$GRADE_results$CI,
                                     "</b> - ",
-                                    clinical_threshold_wording(effect = viewed_summaries()$RR_clin,
+                                    clinical_threshold_wording(effect = RR_clin,
                                                                threshold_higher = clin_thresholds[2],
                                                                threshold_lower = clin_thresholds[1]))
         } else {
           if (viewed_new_df()$GRADE_results$studies_no - viewed_old_df()$studies_no != 0) {
             # If there were new studies
             addition_change <- paste0("Addition of the new study(ies) gave a pooled RR of <b>",
-                                      round(exp(viewed_new_df()$pooled_results$new_ma$beta), 2), " ", viewed_new_df()$GRADE_results$CI,
+                                      round(RR, 2), " ", viewed_new_df()$GRADE_results$CI,
                                       "</b> - this does not give a new clinical interpretation.")
           } else {
             # If there were no new studies

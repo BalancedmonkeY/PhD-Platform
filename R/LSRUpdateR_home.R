@@ -134,7 +134,8 @@ LSRUpdateR_home_server <- function(id, LSRUpdateR_session, parent_session, activ
             data$SAE_df <- data$SAE_df %>%
               filter(Excluded_Date >= most_recent_search_date | is.na(Excluded_Date))
           }
-        
+          
+          
           # Create combination grid (i.e., all 9 scenarios)
           combinations <- expand.grid(
             dataset = c("cess_df", "AE_df", "SAE_df"),
@@ -151,11 +152,12 @@ LSRUpdateR_home_server <- function(id, LSRUpdateR_session, parent_session, activ
               ),
             result_name = paste(comparator_short, dataset_short, sep = "_")
             )
+
         
           # Run LSRUpdateR for each scenario
           LSRUpdateR_results <- purrr::pmap(
             combinations,
-            ~ run_LSRUpdateR(df_name = ..1, comparator = ..2, outcome = ..3,
+            ~ run_LSRUpdateR(data_obj = data, df_name = ..1, comparator = ..2, outcome = ..3,
                              last_update_search_date, thresholds(), results_summary())
           )
         

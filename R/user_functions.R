@@ -125,6 +125,7 @@ get_threshold <- function(df, input, comparator, outcome) {
 
 #' Function that runs LSRUpdateR for a single outcome/comparator
 #'
+#' @param data_obj Name of data object which has a list of dataframes
 #' @param df_name Name of dataframe subsetting from
 #' @param comparator Which comparator its referring to
 #' @param outcome Which outcome its referring to
@@ -134,10 +135,10 @@ get_threshold <- function(df, input, comparator, outcome) {
 #'
 #' @return LSRUpdateR object
 
-run_LSRUpdateR <- function(df_name, comparator, outcome, last_search_date, thresholds_df, results_summary_df) {
+run_LSRUpdateR <- function(data_obj, df_name, comparator, outcome, last_search_date, thresholds_df, results_summary_df) {
   
   # Define dataset
-  data_df <- data[[df_name]] %>%
+  data_df <- data_obj[[df_name]] %>%
     filter(Comparator == comparator)
   
   # Run meta-analysis to obtain weights
@@ -151,7 +152,7 @@ run_LSRUpdateR <- function(df_name, comparator, outcome, last_search_date, thres
     list(
       exp(MA_obj$yi), MA_obj$yi, exp(MA_obj$yi - 1.96*sqrt(MA_obj$vi)), exp(MA_obj$yi + 1.96*sqrt(MA_obj$vi)), weights(MA_obj)
       )
-  
+
   # Run LSRUpdateR command
   UpdatePredictor(
     data = data_df,
