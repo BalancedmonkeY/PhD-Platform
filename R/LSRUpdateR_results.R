@@ -34,7 +34,7 @@ LSRUpdateR_results_ui <- function(id) {
         )
       ),
       navset_card_tab(
-        nav_panel("GRADE",
+        nav_panel("GRADE", value = "GRADE",
                   fluidRow(
                     column(4,
                            h5("Suggestion Details"),
@@ -48,11 +48,12 @@ LSRUpdateR_results_ui <- function(id) {
                              accordion_panel("Publication Bias", value = "pubbias", htmlOutput(ns("pubbias_details"))),
                              accordion_panel("Indirectness", value = "indirectness", htmlOutput(ns("indirectness_details"))),
                              id = ns("GRADE_domains"),
-                             open = FALSE
+                             open = FALSE,
+                             multiple = TRUE
                            ))
                     )
                   ),
-        nav_panel("Point Estimate",
+        nav_panel("Point Estimate", value = "estimate",
                   fluidRow(
                     column(4,
                            h5("Suggestion Details"),
@@ -99,11 +100,12 @@ LSRUpdateR_results_server <- function(id, LSRUpdateR_session, active_page, LSRUp
       ### Ascertain which scenarios LSRUpdateR suggested a update ###
       #-------------------------------------------------------------#
       
-      predicts_update <- reactive({
-        sapply(
+      suggested_scenarios <- reactive({
+        predicts_update <- sapply(
           LSRUpdateR_results(),
           function(x) grepl("LSRUpdateR predicts that the review should be updated for the following reasons.", x$text_result, fixed = TRUE)
         )
+        names(LSRUpdateR_results())[predicts_update]
       })
       
       ### Create filter keys and indicators of suggested updates ###
@@ -114,7 +116,6 @@ LSRUpdateR_results_server <- function(id, LSRUpdateR_session, active_page, LSRUp
       
       # Initialising reactiveVals
       filter_key <- reactiveVal()
-      suggested_scenarios <- reactiveVal()
       
       observe({
         req(active_page() == "results")
@@ -124,9 +125,6 @@ LSRUpdateR_results_server <- function(id, LSRUpdateR_session, active_page, LSRUp
         comparator_filter_lookup <- c(NRT = "NRT", `Non-nicotine EC` = "Non-nic", `Behavioural or none` = "Behavioural")
         
         filter_key(paste0(comparator_filter_lookup[input$comparison_filter], "_", outcome_filter_lookup[input$outcome_filter]))
-        
-        # Extract which scenarios suggested an update
-        suggested_scenarios(names(LSRUpdateR_results())[predicts_update()])
         
         # # Create combination grid (i.e., all 9 scenarios)
         # combinations <- expand.grid(
@@ -204,7 +202,71 @@ LSRUpdateR_results_server <- function(id, LSRUpdateR_session, active_page, LSRUp
       ### Auto present tabs where there are changes ###
       #-----------------------------------------------#
       
-      # Where there is no suggested update, at least present outcome-comparator that had some new data
+      # Identify scenarios with new studies
+      scenarios_with_new_studies <- reactive({
+        scenario_names <- names(LSRUpdateR_results())
+        scenario_names[
+          vapply(
+            scenario_names, new_study_scenario, logical(1),
+            old_df = base_quant_info(), new_df = LSRUpdateR_results()
+          )
+        ]
+      })
+      
+      observe({
+        
+        req(active_page() == "results")
+        
+        # If no update is suggested, present the first scenario with a new study
+        if (length(suggested_scenarios()) == 0) {
+          
+          scenario_to_show <- scenarios_with_new_studies()[1]
+          
+        } else if (length(suggested_scenarios() > 0)) {
+          
+          # If an update is suggested, present the first suggested scenario
+          scenario_to_show <- suggested_scenarios()[1]
+        }
+        
+        # Update to show the right scenario
+        scenario_inputs <- scenario_to_inputs(scenario_to_show)
+        updateSelectInput(
+          inputId = "comparison_filter",
+          selected = scenario_inputs$comparison
+        )
+        updateSelectInput(
+          inputId = "outcome_filter",
+          selected = scenario_inputs$outcome
+        )
+        
+        if (length(suggested_scenarios() > 0)) {
+          
+          # Determine if it was GRADE or point estimate
+          grade_domains <- changed_grade_domains(scenario_to_show, old_df = results_summary(), new_df = LSRUpdateR_results())
+          estimate_change <- changed_point_estimate(scenario_to_show, old_df = results_summary(), new_df = LSRUpdateR_results())
+          if (length(grade_domains) > 0) {
+            bslib::nav_select(
+              id = "GRADE_or_Estimate",
+              selected = "GRADE"
+            )
+            
+            # Determine which GRADE domains to show
+            bslib::accordion_panel_set(
+              id = "GRADE_domains",
+              values = grade_domains
+            )
+            
+            
+          } else if (estimate_change) {
+            bslib::nav_select(
+              id = "GRADE_or_Estimate",
+              selected = "estimate"
+            )
+          }
+        }
+        
+      }) |> bindEvent(active_page(),
+                      ignoreInit = TRUE)
       
       
       ### Fill GRADE details ###
@@ -627,9 +689,10 @@ LSRUpdateR_results_server <- function(id, LSRUpdateR_session, active_page, LSRUp
       })
       
       
-      ### Update Activity Log ###
-      #-------------------------#
+      ### Update Activity Log & Action Buttons ###
+      #------------------------------------------#
       
+      # Add activity log of LSRUpdateR running but suggesting no update
       observe({
         req(active_page() == "results")
       
@@ -641,18 +704,12 @@ LSRUpdateR_results_server <- function(id, LSRUpdateR_session, active_page, LSRUp
                                      LSRUpdateR did not suggest an update and so no update was conducted."))
           activity(activity_log)
 
-        } else {
-        
-          # To be added
-        
-        }
+        } 
         
       }) |>
         bindEvent(active_page())
       
-      
-      ### Action buttons ###
-      #--------------------#
+      # Present relevant action buttons
       
       output$action_buttons <- renderUI({
         
@@ -665,6 +722,7 @@ LSRUpdateR_results_server <- function(id, LSRUpdateR_session, active_page, LSRUp
           
         } else {
           
+          # When update is suggested
           div(
             actionButton(ns("continue"), label = "Continue", icon = shiny::icon("right-long")),
             actionButton(ns("cancel"), label = "Cancel", icon = shiny::icon("circle-xmark"))
@@ -673,17 +731,57 @@ LSRUpdateR_results_server <- function(id, LSRUpdateR_session, active_page, LSRUp
 
       })
       
+      # When update has been suggested and user wishes to continue with the update
+      
       observeEvent(input$continue, {
         bslib::nav_select("LSRUpdateR_navbar", selected = "confirmation", session = LSRUpdateR_session)
       })
       
+      # When update has been suggested but user doesn't wish to go with the update
+      
       observeEvent(input$cancel, {
-        bslib::nav_select("LSRUpdateR_navbar", selected = "home", session = LSRUpdateR_session)
+        # Modal confirming cancellation #
+        showModal(
+          modalDialog(
+            title = "Cancel Suggested Update",
+            footer = modalButton("Close"),
+            easy_close = TRUE,
+            size = "l",
+            div(
+              h5("LSRUpdateR suggested an update, but you have selected to cancel the suggested update. Please confirm that you wish to proceed with the cancellation of the update.
+                 If not, close this window to return to where you were."),
+              actionButton(ns("confirm_cancel"), "Confirm Cancellation")
+            )
+          )
+        )
       })
+      
+      # Move back home and add activity log note if committing to cancellation of update
+      observe({
+        
+        # Activity log
+        activity_log <- activity() %>%
+          add_row(Date = demo_date(), Category = "LSRUpdateR",
+                  Details = paste0("LSRUpdateR was run on ", format(demo_date(), "%d %B %Y"), ". 
+                                     LSRUpdateR suggested an update but the user decided to not go ahead with the suggested update."))
+        activity(activity_log)
+        
+        # Close Modal
+        removeModal()
+        
+        # Return to home
+        bslib::nav_select("LSRUpdateR_navbar", selected = "home", session = LSRUpdateR_session)
+        
+      }) |>
+        bindEvent(input$confirm_cancel)
+      
+      # When no update was suggested, so user wished to return #
       
       observeEvent(input$return, {
         bslib::nav_select("LSRUpdateR_navbar", selected = "home", session = LSRUpdateR_session)
       })
+      
+      
       
       ### Return objects ###
       #--------------------#

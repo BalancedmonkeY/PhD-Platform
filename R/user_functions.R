@@ -290,3 +290,113 @@ run_quant_info <- function(data_obj, df_name, comparator, outcome, thresholds_df
   ))
   
 }
+
+#' Function that takes a scenario and converts it to the two select input options
+#'
+#' @param scenario Scenario code (e.g., NRT_cess)
+#'
+#' @return a list of the comparison and outcome in same format as filters
+
+scenario_to_inputs  <- function(scenario) {
+  
+  scenario_parts <- strsplit(scenario, "_", fixed = TRUE)[[1]]
+  
+  comparator_lookup <- c(
+    NRT = "NRT",
+    `Non-nic` = "Non-nicotine EC",
+    Behavioural = "Behavioural or none"
+  )
+  
+  outcome_lookup <- c(
+    cess = "Cessation",
+    AE = "Adverse Events",
+    SAE = "Serious Adverse Events"
+  )
+  
+  list(
+    comparison = unname(comparator_lookup[scenario_parts[1]]),
+    outcome = unname(outcome_lookup[scenario_parts[2]])
+  )
+}
+
+#' Function returns which GRADE domains have changed
+#'
+#' @param scenario Scenario code (e.g., NRT_cess)
+#' @param old_df Dataframe of old results (will be from result_summary)
+#' @param new_df Dataframe of new results (will be from LSRUpdateR_results)
+#'
+#' @return a list of the domains that have changed
+
+changed_grade_domains  <- function(scenario, old_df, new_df) {
+  
+  scenario_inputs <- scenario_to_inputs(scenario)
+  
+  old_result <- old_df %>% filter(Comparator == scenario_inputs$comparison, Outcome == scenario_inputs$outcome)
+  new_result <- new_df[[scenario]]$GRADE_results
+  
+  old_domains <- c(
+    RoB = old_result$RoB,
+    imprecision = old_result$Imprecision,
+    inconsistency = old_result$Inconsistency,
+    pubbias = old_result$Pubbias,
+    indirectness = old_result$Indirectness
+  )
+  
+  new_domains <- c(
+    RoB = new_result$RoB,
+    imprecision = new_result$Imprecision,
+    inconsistency = new_result$Inconsistency,
+    pubbias = new_result$Pubbias,
+    indirectness = new_result$Indirectness
+  )
+  
+  names(old_domains)[
+    !is.na(old_domains) & !is.na(new_domains) & old_domains != new_domains
+  ]
+  
+}
+
+#' Function returns whether point estimate interpretation changed
+#'
+#' @param scenario Scenario code (e.g., NRT_cess)
+#' @param old_df Dataframe of old results (will be from result_summary)
+#' @param new_df Dataframe of new results (will be from LSRUpdateR_results)
+#'
+#' @return TRUE/FALSE for a change
+
+changed_point_estimate  <- function(scenario, old_df, new_df) {
+  
+  scenario_inputs <- scenario_to_inputs(scenario)
+  
+  old_result <- old_df %>% filter(Comparator == scenario_inputs$comparison, Outcome == scenario_inputs$outcome) %>% pull(RR_clin)
+  result_text <- new_df[[scenario]]$pooled_results$threshold_result
+  new_result <- if (grepl("will give a pooled estimate that is higher", result_text)) {
+    "increase"
+  } else if (grepl("will give a pooled estimate that is lower", result_text)) {
+      "decrease"
+  } else if (grepl("not give a pooled estimate", result_text)) {
+      "no_difference"
+  }
+  
+  !is.na(old_result) & !is.na(new_result) & old_result != new_result
+  
+}
+
+#' Function returns whether there has been a new study for the scenario
+#'
+#' @param scenario Scenario code (e.g., NRT_cess)
+#' @param old_df Dataframe of old results (will be from result_summary)
+#' @param new_df Dataframe of new results (will be from LSRUpdateR_results)
+#'
+#' @return TRUE/FALSE for a change
+
+new_study_scenario  <- function(scenario, old_df, new_df) {
+  
+  old_number <- old_df[[scenario]]$studies_no
+  new_number <- new_df[[scenario]]$GRADE_results$studies_no
+  
+  !is.na(old_number) & !is.na(new_number) & old_number != new_number
+  
+}
+
+
