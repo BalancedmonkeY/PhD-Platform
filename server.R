@@ -133,7 +133,8 @@ server <- function(input, output, session) {
     id = "results",
     data = data_object$data,
     studies = data_object$studies,
-    latest_data_df = home_obj$latest_data_df
+    latest_data_df = home_obj$latest_data_df,
+    results_summary = results_summary
   )
   
   ### Activity Log Server ###

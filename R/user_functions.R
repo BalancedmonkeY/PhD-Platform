@@ -399,4 +399,159 @@ new_study_scenario  <- function(scenario, old_df, new_df) {
   
 }
 
+#' Function to join character values grammatically
+#' 
+#' @param x vector of character items to combine
+#' 
+#' @return Character string
+join_words <- function(x) {
+  
+  x <- unique(stats::na.omit(x))
+  
+  if (length(x) == 0) {
+    return("")
+  }
+  
+  if (length(x) == 1) {
+    return(x)
+  }
+  
+  if (length(x) == 2) {
+    return(paste(x, collapse = " and "))
+  }
+  
+  paste0(
+    paste(x[-length(x)], collapse = ", "),
+    ", and ",
+    x[length(x)]
+  )
+}
 
+#' Function to add "outcome"/"outcomes" and the comparator wording
+#' 
+#' @param outcomes List of outcomes
+#' @param comparator Designated comparator
+#' 
+#' @return Character string
+scenario_group_text <- function(outcomes, comparator) {
+  
+  paste0(
+    join_words(outcomes),
+    " ",
+    if (length(outcomes) == 1) "outcome" else "outcomes",
+    " for ",
+    comparator,
+    " comparison"
+  )
+}
+
+#' Function to create one sentence for changes in GRADE rating
+#' 
+#' @param changes List of scenarios that have changed, including their outcome and comparator in the list
+#' 
+#' @return Character string
+make_grade_reason <- function(changes) {
+  
+  if (nrow(changes) == 0) {
+    return(NULL)
+  }
+  
+  comparator_phrases <- lapply(
+    split(changes, changes$Comparator),
+    function(comparator_changes) {
+      
+      transition_phrases <- lapply(
+        split(
+          comparator_changes,
+          interaction(
+            comparator_changes$Old_GRADE,
+            comparator_changes$New_GRADE,
+            drop = TRUE
+          )
+        ),
+        function(transition_changes) {
+          
+          paste0(
+            join_words(transition_changes$Outcome),
+            if (nrow(transition_changes) == 1) {
+              " outcome moved from "
+            } else {
+              " outcomes moved from "
+            },
+            transition_changes$Old_GRADE[1],
+            " to ",
+            transition_changes$New_GRADE[1]
+          )
+        }
+      )
+      
+      paste0(
+        join_words(unlist(transition_phrases, use.names = FALSE)),
+        " for ",
+        comparator_changes$Comparator[1],
+        " comparison"
+      )
+    }
+  )
+  
+  paste0(
+    join_words(unlist(comparator_phrases, use.names = FALSE)),
+    "."
+  )
+}
+
+#' Function to create one sentence for changes in clinical interpretation
+#' 
+#' @param changes List of scenarios that have changed, including their outcome and comparator in the list
+#' 
+#' @return Character string
+make_interpretation_reason <- function(changes) {
+  
+  if (nrow(changes) == 0) {
+    return(NULL)
+  }
+  
+  comparator_phrases <- lapply(
+    split(changes, changes$Comparator),
+    function(comparator_changes) {
+      
+      transition_phrases <- lapply(
+        split(
+          comparator_changes,
+          interaction(
+            comparator_changes$Old_interpretation,
+            comparator_changes$New_interpretation,
+            drop = TRUE
+          )
+        ),
+        function(transition_changes) {
+          
+          paste0(
+            join_words(transition_changes$Outcome),
+            if (nrow(transition_changes) == 1) {
+              " outcome changed from "
+            } else {
+              " outcomes changed from "
+            },
+            transition_changes$Old_interpretation[1],
+            " to ",
+            transition_changes$New_interpretation[1]
+          )
+        }
+      )
+      
+      paste0(
+        join_words(unlist(transition_phrases, use.names = FALSE)),
+        " for ",
+        comparator_changes$Comparator[1],
+        " comparison"
+      )
+    }
+  )
+  
+  paste0(
+    "Interpretation of ",
+    join_words(unlist(comparator_phrases, use.names = FALSE)),
+    "."
+  )
+}

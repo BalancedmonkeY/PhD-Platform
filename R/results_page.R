@@ -31,7 +31,10 @@ results_page_ui <- function(id) {
         )
       ),
       card_body(
-        plotOutput(ns("forest_plot"))
+        fluidRow(
+          column(10, plotOutput(ns("forest_plot"))),
+          column(2, uiOutput(ns("certainty")))
+        )
       )
     )
   )
@@ -44,9 +47,10 @@ results_page_ui <- function(id) {
 #' @param data Reactive latest data from LSR
 #' @param studies Reactive latest studies from LSR
 #' @param latest_data_df Reactive dataframe of information about the latest data
+#' @param results_summary Reactive dataframe that summarises latest results
 #'
 #' @return nothing yet
-results_page_server <- function(id, data, studies, latest_data_df) {
+results_page_server <- function(id, data, studies, latest_data_df, results_summary) {
   moduleServer(
     id,
     function(input, output, session) {
@@ -143,6 +147,27 @@ results_page_server <- function(id, data, studies, latest_data_df) {
                         ilab.lab = c("Events", "Total", "Events", "Total"), cex = 1.25)
         text(c(-5.25, -2.75), MA_obj$k + 2.8, c("EC", input$comparison_filter), font = 2, cex = 1.3)
   
+      })
+      
+      
+      ### Report certainty of evidence ###
+      #----------------------------------#
+      
+      output$certainty <- renderUI({
+        
+        viewed_GRADE <- results_summary() %>% 
+          filter(Comparator == input$comparison_filter & Outcome == input$outcome_filter) %>%
+          pull(GRADE)
+        
+        GRADE_colour_lookup <- c(high = "success", moderate = "warning", low = "danger", `very low` = "dark")
+        
+        div(
+          bslib::value_box(
+            title = "GRADE Rating",
+            viewed_GRADE,
+            theme = GRADE_colour_lookup[viewed_GRADE]
+          )
+        )
       })
       
     }

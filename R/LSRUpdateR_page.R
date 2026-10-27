@@ -81,7 +81,13 @@ LSRUpdateR_page_server <- function(id, parent_session, activity, latest_data_df,
 
       LSRUpdateR_confirmation_server(
         id = "confirmation_page",
-        LSRUpdateR_session = session
+        LSRUpdateR_session = session,
+        active_page = current_page,
+        LSRUpdateR_results = LSRUpdateR_home_obj$LSRUpdateR_results,
+        activity = activity,
+        suggested_scenarios = LSRUpdateR_results_obj$suggested_scenarios,
+        results_summary = results_summary,
+        thresholds = LSRUpdateR_home_obj$thresholds
       )
       
     }

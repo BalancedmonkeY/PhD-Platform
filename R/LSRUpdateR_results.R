@@ -108,6 +108,7 @@ LSRUpdateR_results_server <- function(id, LSRUpdateR_session, active_page, LSRUp
         names(LSRUpdateR_results())[predicts_update]
       })
       
+      
       ### Create filter keys and indicators of suggested updates ###
       #------------------------------------------------------------#
       
@@ -717,15 +718,15 @@ LSRUpdateR_results_server <- function(id, LSRUpdateR_session, active_page, LSRUp
           
           # When no updated suggested
           div(
-            actionButton(ns("return"), label = "Return", icon = shiny::icon("right-long"))
+            actionButton(ns("return"), label = "Return", icon = shiny::icon("right-long"), class =  "btn-primary")
           )
           
         } else {
           
           # When update is suggested
           div(
-            actionButton(ns("continue"), label = "Continue", icon = shiny::icon("right-long")),
-            actionButton(ns("cancel"), label = "Cancel", icon = shiny::icon("circle-xmark"))
+            actionButton(ns("continue"), label = "Continue", icon = shiny::icon("right-long"), class = "btn-success"),
+            actionButton(ns("cancel"), label = "Cancel", icon = shiny::icon("circle-xmark"), class = "btn-warning")
           )
         }
 
@@ -787,7 +788,7 @@ LSRUpdateR_results_server <- function(id, LSRUpdateR_session, active_page, LSRUp
       #--------------------#
       
       return(list(
-        
+        suggested_scenarios = suggested_scenarios
       ))
       
     }
